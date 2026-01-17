@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, GameStatus } from '../types';
 import { ProgressBar } from './ProgressBar';
 import { TransparentImage } from './TransparentImage';
-import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon } from '@heroicons/react/24/solid';
+import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon, LightBulbIcon } from '@heroicons/react/24/solid';
 import { useSoundManager } from '../hooks/useSoundManager';
 import { RaidState, Player } from '../types';
+import { getWisdomScrollHint } from '../services/geminiService';
 
 const RaidHUD: React.FC<{ raid: RaidState }> = ({ raid }) => {
   return (
@@ -108,6 +109,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const playerRef = useRef<HTMLDivElement>(null);
   const enemyRef = useRef<HTMLDivElement>(null);
   const [attackDistance, setAttackDistance] = useState<number>(0);
+
+  // Wisdom Scroll State
+  const [wisdomHint, setWisdomHint] = useState<string | null>(null);
+  const [isFetchingWisdom, setIsFetchingWisdom] = useState(false);
+  const [showWisdomModal, setShowWisdomModal] = useState(false);
 
   // Track all active timeouts so we can clear them on unmount
   const activeTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -426,7 +432,42 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     setAttackDistance(0);
     // Now load the next turn (boss image was not changed during wrong answer animation)
     onTransitionComplete();
+    onTransitionComplete();
   };
+
+  const handleWisdomScroll = async () => {
+    if (isFetchingWisdom) return;
+
+    // Play sound
+    soundManager.playButtonClick();
+
+    // If we already have a hint for this question, just show it
+    if (wisdomHint) {
+      setShowWisdomModal(true);
+      return;
+    }
+
+    setIsFetchingWisdom(true);
+    try {
+      const hint = await getWisdomScrollHint(
+        gameState.current_turn.question,
+        gameState.topic_title || gameState.context_summary || "General Knowledge",
+        gameState.current_turn.correct_answer || ""
+      );
+      setWisdomHint(hint);
+      setShowWisdomModal(true);
+    } catch (error) {
+      console.error("Failed to get hint", error);
+    } finally {
+      setIsFetchingWisdom(false);
+    }
+  };
+
+  // Reset hint when turn changes
+  useEffect(() => {
+    setWisdomHint(null);
+    setShowWisdomModal(false);
+  }, [gameState.current_turn.turn_number]);
 
   const renderAnswers = () => {
     const { challenge_type, options } = gameState.current_turn;
@@ -642,6 +683,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             >
               <XMarkIcon className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
             </button>
+
+            {/* Wisdom Scroll Button */}
+            <button
+              onClick={handleWisdomScroll}
+              disabled={isFetchingWisdom || showWisdomModal}
+              className={`
+                bg-amber-500/80 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border border-amber-300/30 
+                hover:bg-amber-400 transition-all group relative overflow-hidden
+                ${isFetchingWisdom ? 'animate-pulse cursor-wait' : ''}
+              `}
+              title="Use Wisdom Scroll (Get a Hint)"
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+              <LightBulbIcon className={`w-5 h-5 text-white ${isFetchingWisdom ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`} />
+            </button>
           </div>
         </div>
       </div>
@@ -799,6 +855,42 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               >
                 {dismissButtonText}
               </button>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Wisdom Scroll Modal */}
+      {
+        showWisdomModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-fadeIn">
+            <div className="relative bg-[#f5e6c8] rounded-sm max-w-lg w-full shadow-2xl text-center p-8 border-[12px] border-amber-700/50 outline outline-4 outline-[#d4b483]">
+
+              {/* Scroll Decoration Top */}
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-[120%] h-8 bg-[#e6d0a0] rounded-full shadow-lg border-b border-[#d4b483]" />
+
+              <div className="relative z-10">
+                <h3 className="font-serif text-3xl font-bold text-amber-900 mb-2 flex items-center justify-center gap-2">
+                  <SparklesIcon className="w-6 h-6 text-amber-600" />
+                  Wisdom Scroll
+                  <SparklesIcon className="w-6 h-6 text-amber-600" />
+                </h3>
+                <div className="w-full h-px bg-amber-900/20 mb-6" />
+
+                <p className="font-serif text-xl leading-relaxed text-amber-950 italic mb-8">
+                  "{wisdomHint || "The ancient scrolls are blank..."}"
+                </p>
+
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowWisdomModal(false); }}
+                  className="px-8 py-3 bg-amber-800 hover:bg-amber-700 text-[#f5e6c8] font-bold rounded-lg shadow-lg border-2 border-amber-900 transition-all active:translate-y-1 uppercase tracking-widest text-sm"
+                >
+                  Close Scroll
+                </button>
+              </div>
+
+              {/* Scroll Decoration Bottom */}
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[120%] h-8 bg-[#e6d0a0] rounded-full shadow-lg border-t border-[#d4b483]" />
             </div>
           </div>
         )

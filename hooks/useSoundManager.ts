@@ -11,14 +11,14 @@ const SOUND_PATHS = {
     wrongAnswer: '/sounds/wrong_answer.wav',
     victory: '/sounds/victory.wav',
     defeat: '/sounds/defeat.wav',
-    appearChar: '/sounds/appear_char.wav', 
-    appearUI: '/sounds/appear_ui.wav',     
+    appearChar: '/sounds/appear_char.wav',
+    appearUI: '/sounds/appear_ui.wav',
 } as const;
 
 type SoundType = keyof typeof SOUND_PATHS;
 type MusicType = 'LOADING' | 'BATTLE' | 'NONE';
 
-const STORAGE_KEY = 'battlenotes_sound_enabled';
+const STORAGE_KEY = 'Clash of Minds_sound_enabled';
 
 export const useSoundManager = () => {
     const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => {
@@ -29,7 +29,7 @@ export const useSoundManager = () => {
 
     const audioRefs = useRef<Map<SoundType, HTMLAudioElement>>(new Map());
     const audioContextRef = useRef<AudioContext | null>(null);
-    
+
     // Music State
     const currentMusicType = useRef<MusicType>('NONE');
     const nextNoteTime = useRef<number>(0);
@@ -71,13 +71,13 @@ export const useSoundManager = () => {
     }, []);
 
     // --- PROCEDURAL MUSIC SEQUENCER ---
-    
+
     const playSynthNote = (
-        ctx: AudioContext, 
-        freq: number, 
-        time: number, 
-        duration: number, 
-        vol: number = 0.1, 
+        ctx: AudioContext,
+        freq: number,
+        time: number,
+        duration: number,
+        vol: number = 0.1,
         type: OscillatorType = 'square',
         attack: number = 0
     ) => {
@@ -85,10 +85,10 @@ export const useSoundManager = () => {
         const gain = ctx.createGain();
         osc.type = type;
         osc.frequency.value = freq;
-        
+
         osc.connect(gain);
         gain.connect(ctx.destination);
-        
+
         // Envelope
         if (attack > 0) {
             gain.gain.setValueAtTime(0, time);
@@ -96,10 +96,10 @@ export const useSoundManager = () => {
         } else {
             gain.gain.setValueAtTime(vol, time);
         }
-        
+
         // Release
         gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-        
+
         osc.start(time);
         osc.stop(time + duration);
     };
@@ -115,7 +115,7 @@ export const useSoundManager = () => {
         const noise = ctx.createBufferSource();
         noise.buffer = buffer;
         const gain = ctx.createGain();
-        
+
         // Reverted to Highpass for crispier drums (Battle Theme)
         const filter = ctx.createBiquadFilter();
         filter.type = 'highpass';
@@ -127,7 +127,7 @@ export const useSoundManager = () => {
 
         gain.gain.setValueAtTime(vol, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-        
+
         noise.start(time);
     };
 
@@ -135,7 +135,7 @@ export const useSoundManager = () => {
         const ctx = audioContextRef.current;
         if (!ctx) return;
 
-        const scheduleAheadTime = 0.1; 
+        const scheduleAheadTime = 0.1;
 
         while (nextNoteTime.current < ctx.currentTime + scheduleAheadTime) {
             const beat = beatCount.current;
@@ -143,25 +143,25 @@ export const useSoundManager = () => {
 
             if (currentMusicType.current === 'LOADING') {
                 // --- LOADING THEME: "Zen Space Drone" ---
-                const noteDuration = 0.25; 
+                const noteDuration = 0.25;
                 const cyclePos = beat % 32;
 
                 // 1. The "Void" Drone
                 if (cyclePos === 0) {
-                     playSynthNote(ctx, 55.00, t, 8.0, 0.06, 'sine', 2.0);
-                     playSynthNote(ctx, 55.50, t, 8.0, 0.06, 'sine', 2.5);
+                    playSynthNote(ctx, 55.00, t, 8.0, 0.06, 'sine', 2.0);
+                    playSynthNote(ctx, 55.50, t, 8.0, 0.06, 'sine', 2.5);
                 }
 
                 // 2. Ethereal Pads
                 if (cyclePos === 4) {
                     [220.00, 261.63, 329.63, 493.88].forEach((f, i) => {
-                         playSynthNote(ctx, f, t + i*0.2, 5.0, 0.015, 'sine', 1.5);
+                        playSynthNote(ctx, f, t + i * 0.2, 5.0, 0.015, 'sine', 1.5);
                     });
                 }
-                
+
                 if (cyclePos === 20) {
                     [174.61, 220.00, 261.63, 329.63].forEach((f, i) => {
-                         playSynthNote(ctx, f, t + i*0.2, 5.0, 0.015, 'sine', 1.5);
+                        playSynthNote(ctx, f, t + i * 0.2, 5.0, 0.015, 'sine', 1.5);
                     });
                 }
 
@@ -169,16 +169,16 @@ export const useSoundManager = () => {
                 if (Math.random() < 0.15) {
                     const pentatonic = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
                     const freq = pentatonic[Math.floor(Math.random() * pentatonic.length)];
-                    playSynthNote(ctx, freq, t, 2.0, 0.01, 'sine', 0.1); 
+                    playSynthNote(ctx, freq, t, 2.0, 0.01, 'sine', 0.1);
                 }
 
                 nextNoteTime.current += noteDuration;
                 beatCount.current++;
-            } 
+            }
             else if (currentMusicType.current === 'BATTLE') {
                 // --- BATTLE THEME (Restored to previous version) ---
-                const noteDuration = 0.14; 
-                const measurePos = beat % 16; 
+                const noteDuration = 0.14;
+                const measurePos = beat % 16;
 
                 // Bass Line
                 let bassFreq = 0;
@@ -192,25 +192,25 @@ export const useSoundManager = () => {
 
                 // Drums
                 if (measurePos % 4 === 0) {
-                   // Kick
-                   playSynthNote(ctx, 60, t, 0.1, 0.04, 'sine');
+                    // Kick
+                    playSynthNote(ctx, 60, t, 0.1, 0.04, 'sine');
                 }
                 if (measurePos % 2 !== 0) {
-                   // Hi-hat
-                   playNoise(ctx, t, 0.05, 0.005);
+                    // Hi-hat
+                    playNoise(ctx, t, 0.05, 0.005);
                 }
                 if (measurePos === 4 || measurePos === 12) {
-                   // Snare - Restored volume but kept slightly lower than original to avoid "too loud" complaint
-                   playNoise(ctx, t, 0.1, 0.012); 
+                    // Snare - Restored volume but kept slightly lower than original to avoid "too loud" complaint
+                    playNoise(ctx, t, 0.1, 0.012);
                 }
 
                 nextNoteTime.current += noteDuration;
                 beatCount.current++;
             } else {
-                nextNoteTime.current += 0.5; 
+                nextNoteTime.current += 0.5;
             }
         }
-        
+
         sequencerTimer.current = window.setTimeout(scheduler, 25);
     }, []);
 
@@ -253,7 +253,7 @@ export const useSoundManager = () => {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(100, now);
         osc.frequency.exponentialRampToValueAtTime(800, now + 0.6);
-        
+
         // Flutter effect
         const lfo = ctx.createOscillator();
         lfo.frequency.value = 15;
@@ -358,27 +358,27 @@ export const useSoundManager = () => {
                 osc.start(now); osc.stop(now + 0.3);
                 break;
             case 'victory':
-                 [523, 659, 784, 1046].forEach((f, i) => {
-                     const o = ctx.createOscillator();
-                     const g = ctx.createGain();
-                     o.type='triangle'; o.frequency.value=f;
-                     o.connect(g); g.connect(ctx.destination);
-                     g.gain.setValueAtTime(0.1, now + i*0.1);
-                     g.gain.linearRampToValueAtTime(0, now + i*0.1 + 0.3);
-                     o.start(now + i*0.1); o.stop(now + i*0.1 + 0.3);
-                 });
-                 break;
+                [523, 659, 784, 1046].forEach((f, i) => {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = 'triangle'; o.frequency.value = f;
+                    o.connect(g); g.connect(ctx.destination);
+                    g.gain.setValueAtTime(0.1, now + i * 0.1);
+                    g.gain.linearRampToValueAtTime(0, now + i * 0.1 + 0.3);
+                    o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.3);
+                });
+                break;
             case 'defeat':
-                 [400, 350, 300, 250].forEach((f, i) => {
-                     const o = ctx.createOscillator();
-                     const g = ctx.createGain();
-                     o.type='sawtooth'; o.frequency.value=f;
-                     o.connect(g); g.connect(ctx.destination);
-                     g.gain.setValueAtTime(0.1, now + i*0.3);
-                     g.gain.linearRampToValueAtTime(0, now + i*0.3 + 0.4);
-                     o.start(now + i*0.3); o.stop(now + i*0.3 + 0.4);
-                 });
-                 break;
+                [400, 350, 300, 250].forEach((f, i) => {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = 'sawtooth'; o.frequency.value = f;
+                    o.connect(g); g.connect(ctx.destination);
+                    g.gain.setValueAtTime(0.1, now + i * 0.3);
+                    g.gain.linearRampToValueAtTime(0, now + i * 0.3 + 0.4);
+                    o.start(now + i * 0.3); o.stop(now + i * 0.3 + 0.4);
+                });
+                break;
         }
     }, [initAudioContext]);
 
@@ -386,7 +386,7 @@ export const useSoundManager = () => {
         if (!isSoundEnabled) return;
         initAudioContext();
         const audio = audioRefs.current.get(type);
-        
+
         // Always try to play file first
         if (audio && audio.dataset.broken !== 'true') {
             const clone = audio.cloneNode() as HTMLAudioElement;

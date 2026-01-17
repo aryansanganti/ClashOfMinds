@@ -491,7 +491,7 @@ const App: React.FC = () => {
                 <Swords className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2.5} />
               </div>
               <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-800 mb-2">
-                BattleNotes
+                Clash of Minds
               </h1>
               <p className="text-slate-500 font-bold text-lg">
                 Turn boring notes into a game
