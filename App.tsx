@@ -1,12 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { LoginScreen } from './src/components/LoginScreen';
+
 import { GameState, GameStatus, TurnContent, Difficulty, Gender, PlayerStats, LoadingProgress as LoadingProgressType, PreloadedTurn } from './types';
 import { initializeGame, generateGameImage } from './services/geminiService';
 import { loadStats, recordGameStart, recordTurnResult, recordGameEnd } from './services/statsService';
+import { saveGameState, loadGameState, clearSavedGame, hasSavedGame, SavedGameData } from './services/saveService';
 import { GameScreen } from './components/GameScreen';
 import { StatsPanel } from './components/StatsPanel';
 import { LoadingProgress } from './components/LoadingProgress';
 import { LobbyScreen } from './components/LobbyScreen';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon } from '@heroicons/react/24/solid';
+import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/solid';
 import { Swords } from 'lucide-react';
 import { useSoundManager } from './hooks/useSoundManager';
 
@@ -17,15 +21,22 @@ interface ApiError {
   message: string;
 }
 
-const App: React.FC = () => {
+const GameApp: React.FC = () => {
+  // Hooks must run unconditionally
+  const { logout, currentUser } = useAuth();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY'>('MENU');
   const [raidFriends, setRaidFriends] = useState<string[]>([]);
+
+  // Save/Resume state
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [savedGameData, setSavedGameData] = useState<SavedGameData | null>(null);
 
   // Sound Manager
   const soundManager = useSoundManager();
 
   const [loading, setLoading] = useState(false);
+
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgressType | null>(null);
   const [apiError, setApiError] = useState<ApiError | null>(null);
 
@@ -64,6 +75,23 @@ const App: React.FC = () => {
 
   // Abort controller for cancelling background operations
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Check for saved game on mount
+  useEffect(() => {
+    console.log('[Resume Check] Effect triggered:', { currentUser: !!currentUser, view, gameState: !!gameState });
+    if (currentUser && view === 'MENU' && !gameState) {
+      const hasSave = hasSavedGame(currentUser.uid);
+      console.log('[Resume Check] Has saved game:', hasSave);
+      if (hasSave) {
+        const saved = loadGameState(currentUser.uid);
+        console.log('[Resume Check] Loaded save data:', saved);
+        if (saved) {
+          setSavedGameData(saved);
+          setShowResumeModal(true);
+        }
+      }
+    }
+  }, [currentUser, view, gameState]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -364,6 +392,10 @@ const App: React.FC = () => {
       setPlayerStats(endStats);
       // Stop BGM on game over
       soundManager.stopMusic();
+      // Clear saved game when game ends
+      if (currentUser) {
+        clearSavedGame(currentUser.uid);
+      }
     }
 
     // Store the next turn index BEFORE state update (for handleTransitionComplete to use)
@@ -382,6 +414,38 @@ const App: React.FC = () => {
         turns_lost: isCorrect ? prev.stats.turns_lost : prev.stats.turns_lost + 1
       }
     }) : null);
+
+    // Auto-save after each turn (if game is still playing)
+    if (newStatus === GameStatus.PLAYING && currentUser) {
+      setTimeout(() => {
+        // Save the updated game state
+        const updatedGameState: GameState = {
+          ...gameState,
+          game_status: newStatus,
+          stats: {
+            ...gameState.stats,
+            player_hp: newPlayerHp,
+            streak: newStreak,
+            current_turn_index: gameState.stats.current_turn_index + 1,
+            turns_won: isCorrect ? gameState.stats.turns_won + 1 : gameState.stats.turns_won,
+            turns_lost: isCorrect ? gameState.stats.turns_lost : gameState.stats.turns_lost + 1
+          }
+        };
+
+        // Strip boss images from preloadedTurns to save space
+        const turnsWithoutImages = preloadedTurns.current.map(turn => ({
+          content: turn.content,
+          bossImage: '' // Remove image to save space
+        }));
+
+        saveGameState(currentUser.uid, {
+          gameState: updatedGameState,
+          preloadedTurns: turnsWithoutImages,
+          timestamp: Date.now(),
+          userId: currentUser.uid
+        });
+      }, 100); // Small delay to ensure state is updated
+    }
   };
 
   const handleTransitionComplete = () => {
@@ -431,6 +495,100 @@ const App: React.FC = () => {
     preloadedTurns.current = [];
     pendingNextTurnIndex.current = -1;
     setLoadingProgress(null);
+  };
+
+  // Resume saved game
+  const handleResumeGame = async () => {
+    if (!savedGameData) return;
+
+    soundManager.playButtonClick();
+    setShowResumeModal(false);
+    setLoading(true);
+
+    try {
+      // Restore game state first
+      setGameState(savedGameData.gameState);
+
+      // Regenerate ALL boss images since we don't save them
+      const bossImagePromises = savedGameData.preloadedTurns.map((turn) =>
+        generateGameImage(
+          turn.content.new_boss_visual_prompt || savedGameData.gameState.theme.boss_visual_prompt,
+          false,
+          'left'
+        )
+      );
+
+      const [playerImg, bgImg, ...bossImages] = await Promise.all([
+        generateGameImage(savedGameData.gameState.theme.player_visual_prompt, false, 'right'),
+        generateGameImage(savedGameData.gameState.theme.background_visual_prompt, true),
+        ...bossImagePromises
+      ]);
+
+      // Restore preloaded turns with regenerated images
+      preloadedTurns.current = savedGameData.preloadedTurns.map((turn, index) => ({
+        content: turn.content,
+        bossImage: bossImages[index]
+      }));
+
+      const currentTurnIndex = savedGameData.gameState.stats.current_turn_index;
+      setBossImage(bossImages[currentTurnIndex]);
+      setPlayerImage(playerImg);
+      setBackgroundImage(bgImg);
+
+      // Set up game tracking
+      const topicName = savedGameData.gameState.topic_title || 'Resumed Game';
+      currentTopicName.current = topicName;
+      gameStartTime.current = Date.now();
+
+      setView('GAME');
+      setLoading(false);
+
+      // Play battle music
+      soundManager.playTransition();
+      setTimeout(() => {
+        soundManager.playBattleMusic();
+      }, 600);
+
+      setSavedGameData(null);
+    } catch (error) {
+      console.error('Error resuming game:', error);
+      setLoading(false);
+      alert('Failed to resume game. Please try starting a new game.');
+    }
+  };
+
+  // Start new game (clear save)
+  const handleStartNewGame = () => {
+    if (currentUser) {
+      clearSavedGame(currentUser.uid);
+    }
+    soundManager.playButtonClick();
+    setShowResumeModal(false);
+    setSavedGameData(null);
+  };
+
+  // Save and quit
+  const handleSaveAndQuit = () => {
+    if (!gameState || !currentUser) return;
+
+    soundManager.playButtonClick();
+
+    // Save current game state (WITHOUT images)
+    // Strip boss images from preloadedTurns to save space
+    const turnsWithoutImages = preloadedTurns.current.map(turn => ({
+      content: turn.content,
+      bossImage: '' // Remove image to save space
+    }));
+
+    saveGameState(currentUser.uid, {
+      gameState,
+      preloadedTurns: turnsWithoutImages,
+      timestamp: Date.now(),
+      userId: currentUser.uid
+    });
+
+    // Return to menu
+    handleReset();
   };
 
   const handleOpenLobby = () => {
@@ -524,6 +682,14 @@ const App: React.FC = () => {
                   >
                     <Cog6ToothIcon className="w-6 h-6" />
                   </button>
+                  <button
+                    onClick={() => { soundManager.playButtonClick(); logout(); }}
+                    disabled={loading}
+                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-red-500"
+                    title="Sign Out"
+                  >
+                    <ArrowLeftOnRectangleIcon className="w-6 h-6" />
+                  </button>
                 </div>
 
                 {/* Menu/Close toggle button */}
@@ -557,6 +723,42 @@ const App: React.FC = () => {
                   className="fixed inset-0 z-0"
                   onClick={() => setShowMenu(false)}
                 />
+              )}
+
+              {/* Resume Game Modal */}
+              {showResumeModal && savedGameData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+                  <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-fadeIn">
+                    <h2 className="text-2xl font-black text-slate-800 mb-4">Continue Your Battle?</h2>
+                    <p className="text-slate-600 mb-2">
+                      You have a saved game from{' '}
+                      <span className="font-bold">
+                        {new Date(savedGameData.timestamp).toLocaleString()}
+                      </span>
+                    </p>
+                    <p className="text-slate-500 text-sm mb-6">
+                      Topic: <span className="font-bold">{savedGameData.gameState.topic_title || 'Unknown'}</span>
+                      {' • '}
+                      Turn {savedGameData.gameState.stats.current_turn_index + 1} of {savedGameData.gameState.stats.total_turns}
+                      {' • '}
+                      HP: {savedGameData.gameState.stats.player_hp}/{savedGameData.gameState.stats.player_max_hp}
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleResumeGame}
+                        className="flex-1 bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-4 border-green-700 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
+                      >
+                        Resume
+                      </button>
+                      <button
+                        onClick={handleStartNewGame}
+                        className="flex-1 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
+                      >
+                        New Game
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               <form onSubmit={(e) => { e.preventDefault(); handleStartGame(); }} className="space-y-6">
@@ -834,6 +1036,22 @@ const App: React.FC = () => {
                       <LoadingProgress progress={loadingProgress} />
                     )}
 
+                    {/* Manual Resume Button (Debug/Fallback) */}
+                    {!loading && currentUser && hasSavedGame(currentUser.uid) && (
+                      <button
+                        onClick={() => {
+                          const saved = loadGameState(currentUser.uid);
+                          if (saved) {
+                            setSavedGameData(saved);
+                            setShowResumeModal(true);
+                          }
+                        }}
+                        className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 rounded-xl py-2 font-bold text-sm uppercase tracking-wide transition-all"
+                      >
+                        📂 Resume Saved Game
+                      </button>
+                    )}
+
                   </>
                 )}
 
@@ -855,11 +1073,38 @@ const App: React.FC = () => {
           onAction={handleAction}
           onTransitionComplete={handleTransitionComplete}
           onGiveUp={handleReset}
+          onSaveAndQuit={handleSaveAndQuit}
           soundManager={soundManager}
         />
       ) : null
       }
     </div >
+  );
+};
+
+const AuthWrapper: React.FC = () => {
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginScreen />;
+  }
+
+  return <GameApp />;
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AuthWrapper />
+    </AuthProvider>
   );
 };
 
