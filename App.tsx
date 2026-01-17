@@ -874,21 +874,17 @@ const GameApp: React.FC = () => {
           />
         )
       ) : view === 'MENU' ? (
-        <div className="flex items-center justify-center min-h-screen p-4">
-          <div className="w-full max-w-lg">
+        <div className="relative flex items-center justify-center min-h-screen p-4 overflow-hidden">
+          {/* Background Image */}
+          <div className="absolute inset-0 z-0">
+            <img
+              src="/background.png"
+              alt="Background"
+              className="w-full h-full object-cover opacity-100"
+            />
+          </div>
 
-            {/* Logo Area */}
-            <div className="text-center mb-6 md:mb-10">
-              <div className="inline-block p-4 rounded-3xl bg-sky-400 text-white mb-4 rotate-3 shadow-lg transition-transform hover:rotate-6">
-                <Swords className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2.5} />
-              </div>
-              <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-800 mb-2">
-                Clash of Minds
-              </h1>
-              <p className="text-slate-500 font-bold text-lg">
-                Turn boring notes into a game
-              </p>
-            </div>
+          <div className="relative z-10 w-full max-w-lg">
 
             {/* Menu Buttons Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
