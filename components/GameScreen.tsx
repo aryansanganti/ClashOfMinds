@@ -1,63 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GameState, GameStatus } from '../types';
+import { GameState, GameStatus, MissedQuestion } from '../types';
 import { ProgressBar } from './ProgressBar';
 import { TransparentImage } from './TransparentImage';
 import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import { useSoundManager } from '../hooks/useSoundManager';
-import { RaidState, Player } from '../types';
-
-const RaidHUD: React.FC<{ raid: RaidState }> = ({ raid }) => {
-  return (
-    <div className="absolute top-20 right-4 w-64 z-40 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-xl ml-auto animate-slideInRight hidden lg:block text-white">
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <h3 className="font-black text-red-400 text-sm uppercase tracking-widest">Global Boss HP</h3>
-          <span className="font-bold text-xs">{Math.ceil(raid.boss_hp)} / {raid.boss_max_hp}</span>
-        </div>
-        <div className="h-3 bg-red-900/50 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-red-500 rounded-full transition-all duration-500"
-            style={{ width: `${(raid.boss_hp / raid.boss_max_hp) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <h3 className="font-black text-slate-300 text-[10px] uppercase tracking-widest mb-2">Raid Party</h3>
-        {raid.players?.filter(p => p.is_bot).map(bot => (
-          <div key={bot.id} className="flex items-center gap-3 bg-white/5 p-2 rounded-xl border border-white/5">
-            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-lg shadow-inner">
-              {bot.avatar}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-xs truncate">{bot.name}</span>
-                <span className={`text-[10px] font-bold ${bot.status === 'ATTACKING' ? 'text-green-400' : bot.status === 'HIT' ? 'text-red-400' : 'text-slate-400'}`}>
-                  {bot.status}
-                </span>
-              </div>
-              <div className="h-1.5 bg-slate-700 rounded-full mt-1 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${bot.hp < 30 ? 'bg-red-500' : 'bg-green-500'}`}
-                  style={{ width: `${(bot.hp / bot.max_hp) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {raid.log && raid.log.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-white/10">
-          <div className="text-[10px] text-slate-300 font-mono opacity-80">
-            {raid.log[raid.log.length - 1]}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
+import { ScholarReport } from './ScholarReport';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -67,7 +14,12 @@ interface GameScreenProps {
   onAction: (answer: string, isCorrect: boolean) => void;
   onTransitionComplete: () => void;
   onGiveUp: () => void;
+  onSaveAndQuit?: () => void;
+  onUsePowerup?: (type: 'SHIELD') => void;
   soundManager: ReturnType<typeof useSoundManager>;
+  missedQuestions: MissedQuestion[];
+  topicName: string;
+  contextSummary?: string;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
@@ -78,6 +30,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   onAction,
   onTransitionComplete,
   onGiveUp,
+  missedQuestions,
+  topicName,
+  contextSummary,
+  onSaveAndQuit,
+  onUsePowerup,
   soundManager
 }) => {
   const [input, setInput] = useState('');
@@ -103,6 +60,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [typewriterComplete, setTypewriterComplete] = useState(false);
   // Store the displayed boss name separately to sync with animation timing
   const [displayedBossName, setDisplayedBossName] = useState(gameState.current_turn.new_boss_name || gameState.theme.boss_name);
+  // Scholar's Report state
+  const [showScholarReport, setShowScholarReport] = useState(false);
 
   // Refs for dynamic movement calculation
   const playerRef = useRef<HTMLDivElement>(null);
@@ -130,61 +89,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       activeTimeouts.current = [];
     };
   }, []);
-
-  // --- RAID SIMULATION STATE ---
-  const [raidState, setRaidState] = useState<RaidState | undefined>(gameState.raid);
-
-  // Update local raid state if props change (though we manage it locally mostly)
-  useEffect(() => {
-    if (gameState.raid) {
-      // Only update if we don't have one, or to sync major changes? 
-      // For now, let's initialize if missing
-      if (!raidState) setRaidState(gameState.raid);
-    }
-  }, [gameState.raid]);
-
-  // Simulate bot turns whenever turn index changes
-  useEffect(() => {
-    if (!raidState || !waitingForTurn) return;
-
-    // Simulate bots after a small delay
-    const t = setTimeout(() => {
-      setRaidState(prev => {
-        if (!prev) return undefined;
-        const newPrev = { ...prev, log: [...prev.log] };
-
-        // Randomly pick a bot to attack
-        const activeBots = newPrev.players.filter(p => p.is_bot && p.hp > 0);
-        activeBots.forEach(bot => {
-          if (Math.random() > 0.3) {
-            bot.status = 'ATTACKING';
-            newPrev.boss_hp = Math.max(0, newPrev.boss_hp - (Math.random() * 5 + 5));
-            newPrev.log.push(`${bot.name} used ${bot.sub_topic} Attack!`);
-          } else {
-            bot.status = 'HIT';
-            bot.hp = Math.max(0, bot.hp - 10);
-            newPrev.log.push(`${bot.name} took damage!`);
-          }
-        });
-
-        return { ...newPrev };
-      });
-
-      // Reset status after delay
-      setTimeout(() => {
-        setRaidState(prev => {
-          if (!prev) return undefined;
-          const newPrev = { ...prev };
-          newPrev.players.forEach(p => { if (p.is_bot) p.status = 'IDLE'; });
-          return { ...newPrev };
-        });
-      }, 1500);
-
-    }, 2000);
-
-    return () => clearTimeout(t);
-  }, [gameState.stats.current_turn_index]);
-
 
   // When turn content changes, reset waitingForTurn to trigger animations
   useEffect(() => {
@@ -438,7 +342,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       return (
         <div className={`grid grid-cols-2 gap-2 md:gap-3 lg:gap-4`}>
           {displayOptions.map((opt, idx) => {
-            const isTrue = opt.toUpperCase() === 'TRUE';
+            const isTrueFalse = gameState.current_turn.challenge_type === 'TRUE_FALSE';
+            const isTrue = opt.toLowerCase() === 'true';
             const isSelected = selectedOption === opt;
 
             let btnClass = '';
@@ -572,14 +477,39 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
-              className="w-full py-4 bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-white border-b-4 border-sky-600 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1"
-            >
-              Back to Menu
-            </button>
+            {/* Buttons */}
+            <div className="space-y-3">
+              {missedQuestions.length > 0 && !showScholarReport && (
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowScholarReport(true); }}
+                  className="w-full py-4 bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-b-4 border-purple-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 flex items-center justify-center gap-2"
+                >
+                  <SparklesIcon className="w-6 h-6" />
+                  View Study Guide
+                </button>
+              )}
+              <button
+                onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
+                className="w-full py-4 bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-white border-b-4 border-sky-600 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1"
+              >
+                Back to Menu
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Scholar's Report Overlay */}
+        {showScholarReport && (
+          <ScholarReport
+            topicName={topicName}
+            contextSummary={contextSummary}
+            missedQuestions={missedQuestions}
+            totalQuestions={gameState.stats.total_turns}
+            correctAnswers={gameState.stats.turns_won}
+            onClose={() => { setShowScholarReport(false); onGiveUp(); }}
+            soundManager={soundManager}
+          />
+        )}
       </div>
     );
   }
@@ -603,9 +533,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           opacity: (!showQuestion || attackingPlayer || attackingEnemy || playerShaking || enemyShaking) ? 0 : 1
         }}
       />
-
-      {/* Raid HUD */}
-      {raidState && <RaidHUD raid={raidState} />}
 
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-50 p-3 md:p-4">
@@ -635,6 +562,41 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </div>
               <span className="text-white/50 text-[10px] md:text-xs font-bold uppercase hidden sm:block">Question</span>
             </div>
+
+            {/* Mana Bar */}
+            <div className="bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2 md:px-4 md:py-2.5 shadow-lg border border-white/10 flex items-center gap-2 min-w-[100px]">
+              <span className="text-blue-400 text-lg">💧</span>
+              <div className="flex-1 min-w-[60px]">
+                <div className="h-2 bg-blue-900/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300"
+                    style={{ width: `${(gameState.stats.mana / gameState.stats.max_mana) * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] font-bold text-white/70 mt-0.5">
+                  <span>{gameState.stats.mana}</span>
+                  <span>{gameState.stats.max_mana}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Shield Power-up Button */}
+            {onUsePowerup && (
+              <button
+                onClick={() => onUsePowerup('SHIELD')}
+                disabled={gameState.stats.mana < 30 || gameState.stats.active_powerups.some(p => p.type === 'SHIELD')}
+                className="bg-purple-500/80 backdrop-blur-md rounded-2xl px-3 py-2 shadow-lg border border-purple-300/30 hover:bg-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed relative group"
+                title="Shield (30 mana) - Block next damage"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg">🛡️</span>
+                  <span className="text-white font-bold text-xs hidden md:block">30</span>
+                </div>
+                {gameState.stats.active_powerups.some(p => p.type === 'SHIELD') && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-black/60" />
+                )}
+              </button>
+            )}
             {/* Give Up */}
             <button
               onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
@@ -642,6 +604,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             >
               <XMarkIcon className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
             </button>
+
+            {/* Save & Quit (if available) */}
+            {onSaveAndQuit && (
+              <button
+                onClick={() => { soundManager.playButtonClick(); onSaveAndQuit(); }}
+                className="bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2 shadow-lg border border-white/10 hover:bg-blue-500/80 transition-all group hidden md:flex items-center gap-1.5"
+                title="Save & Quit"
+              >
+                <span className="text-[10px] font-bold text-white/70 group-hover:text-white transition-colors uppercase">Save</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
