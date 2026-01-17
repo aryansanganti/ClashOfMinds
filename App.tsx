@@ -1804,7 +1804,9 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AuthWrapper />
+        <KnowledgeProvider>
+          <AuthWrapper />
+        </KnowledgeProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
