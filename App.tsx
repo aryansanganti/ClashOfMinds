@@ -16,7 +16,7 @@ import { saveBattleForOffline, getOfflineBattles, deleteOfflineBattle } from './
 import { OfflineBattlePack } from './types';
 import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon, BookOpenIcon, WifiIcon, TrashIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
 import { RaidGameScreen } from './components/RaidGameScreen';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
+
 import { Swords } from 'lucide-react';
 import { useSoundManager } from './hooks/useSoundManager';
 import { useMultiplayer } from './hooks/useMultiplayer';
@@ -940,38 +940,33 @@ const GameApp: React.FC = () => {
                               soundManager.playBattleMusic();
                               // Load Manifest directly into Game State
                               setGameState({
-                                game_status: 'PLAYING',
+                                game_status: GameStatus.PLAYING,
                                 topic_title: battle.topic,
-                                theme: battle.manifest.theme,
+                                theme: battle.manifest.gameState.theme,
                                 stats: {
                                   current_turn_index: 0,
                                   total_turns: battle.manifest.allTurns.length,
                                   player_hp: 100,
                                   player_max_hp: 100,
-                                  score: 0,
                                   streak: 0,
-                                  correct_answers: 0,
-                                  wrong_answers: 0
+                                  turns_won: 0,
+                                  turns_lost: 0,
+                                  mana: 50,
+                                  max_mana: 100,
+                                  active_powerups: []
                                 },
-                                current_turn: battle.manifest.allTurns[0],
-                                // Note: We need to store full turns somewhere if GameApp uses 'competitionTurns' ref or similar for local too??
-                                // Ah, GameApp usually constructs turns locally or via initializeGame. 
-                                // Wait, GameApp relies on `gameState.current_turn` updating.
-                                // We need a mechanism to advance turns for offline play if 'App.tsx' handles logic.
-                                // App.tsx handles 'handleAnswer' which calls 'nextTurn' which calls AI usually?
-                                // NO: 'turn_generation_mode' is usually AI.
-                                // We need to inject the FULL list of turns into a state so `nextTurn` just picks the next one without AI.
+                                current_turn: battle.manifest.allTurns[0]
                               });
                               // Populate preloadedTurns from pack
                               preloadedTurns.current = battle.manifest.allTurns.map((turn, i) => ({
                                 content: turn,
-                                bossImage: undefined
+                                bossImage: null
                               }));
 
                               // Set Images
-                              setPlayerImage(undefined);
-                              setBackgroundImage(undefined);
-                              setBossImage(undefined);
+                              setPlayerImage(null);
+                              setBackgroundImage(null);
+                              setBossImage(null);
 
                               setView('GAME');
                             }}
@@ -1532,11 +1527,49 @@ const AuthWrapper: React.FC = () => {
   return <GameApp />;
 };
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-10 text-center bg-slate-900 min-h-screen flex flex-col items-center justify-center text-white">
+          <h1 className="text-3xl font-bold text-red-500 mb-4">Something went wrong.</h1>
+          <p className="mb-6 text-slate-300 max-w-md bg-slate-800 p-4 rounded-xl border border-slate-700">
+            {this.state.error?.message}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold"
+          >
+            Reload Game
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AuthWrapper />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AuthWrapper />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

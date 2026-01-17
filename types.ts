@@ -130,7 +130,7 @@ export interface LoadingProgress {
 
 export interface PreloadedTurn {
   content: TurnContent;
-  bossImage: string;
+  bossImage: string | null;
 }
 
 export interface Player {
