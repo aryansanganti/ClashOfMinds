@@ -674,3 +674,28 @@ export const speakLikeBoss = async (text: string): Promise<void> => {
     window.speechSynthesis.speak(utterance);
   });
 };
+
+export const getWisdom = async (question: string, context?: string): Promise<string> => {
+  const client = getAiClient();
+  const prompt = `
+    You are a wise, cryptic sage in a fantasy game.
+    The player is facing this question: "${question}".
+    ${context ? `Context: ${context}` : ''}
+    
+    Provide a SHORT, helpful hint (max 20 words). 
+    Do NOT give the direct answer. 
+    Be mysterious but useful. 
+    Rhyme if possible.
+  `;
+
+  try {
+    const response = await client.models.generateContent({
+      model: HINT_MODEL_NAME,
+      contents: { parts: [{ text: prompt }] },
+    });
+    return response.text?.trim() || "The spirits are silent...";
+  } catch (error) {
+    console.error("Wisdom failed:", error);
+    return "The ancient scrolls are too faded to read...";
+  }
+};

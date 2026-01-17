@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, GameStatus, MissedQuestion } from '../types';
 import { ProgressBar } from './ProgressBar';
 import { TransparentImage } from './TransparentImage';
-import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon, SpeakerWaveIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
+import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon, SpeakerWaveIcon, MicrophoneIcon, LightBulbIcon } from '@heroicons/react/24/solid';
 import { useSoundManager } from '../hooks/useSoundManager';
 import { ScholarReport } from './ScholarReport';
-import { generateMnemonic, speakLikeBoss } from '../services/geminiService';
+import { generateMnemonic, speakLikeBoss, getWisdom } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface GameScreenProps {
@@ -73,6 +73,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   // Mnemonic Forge State
   const [mnemonic, setMnemonic] = useState<string | null>(null);
   const [isForgingMnemonic, setIsForgingMnemonic] = useState(false);
+
+  // Wisdom Scroll State
+  const [isFetchingWisdom, setIsFetchingWisdom] = useState(false);
+  const [showWisdomModal, setShowWisdomModal] = useState(false);
+  const [wisdomHint, setWisdomHint] = useState<string | null>(null);
 
   // Oracle Mode State
   const [oracleModeEnabled, setOracleModeEnabled] = useState(false);
@@ -265,6 +270,25 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       soundManager.playDefeat();
     }
   }, [gameState.game_status, soundManager]);
+
+  const handleWisdomScroll = async () => {
+    soundManager.playButtonClick();
+    if (wisdomHint) {
+      setShowWisdomModal(true);
+      return;
+    }
+
+    setIsFetchingWisdom(true);
+    try {
+      const hint = await getWisdom(gameState.current_turn.question, contextSummary);
+      setWisdomHint(hint);
+      setShowWisdomModal(true);
+    } catch (e) {
+      console.error("Wisdom Error", e);
+    } finally {
+      setIsFetchingWisdom(false);
+    }
+  };
 
   const handleAction = async (answer: string) => {
     if (isProcessing) return;
@@ -626,7 +650,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <div className="absolute top-0 left-0 right-0 z-50 p-3 md:p-4">
         <div className="max-w-5xl mx-auto flex justify-center items-center">
           {/* Centered HUD Container */}
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-center">
             {/* Topic Title */}
             <div className="bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2 md:px-4 md:py-2.5 shadow-lg border border-white/10 flex items-center gap-2 max-w-[140px] md:max-w-[200px]">
               <span className="text-purple-400 text-lg">📚</span>
@@ -702,6 +726,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               )}
             </button>
 
+            {/* Wisdom Scroll Button */}
+            <button
+              onClick={handleWisdomScroll}
+              disabled={isFetchingWisdom || showWisdomModal}
+              className={`
+                bg-amber-500/80 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border border-amber-300/30 
+                hover:bg-amber-400 transition-all group relative overflow-hidden
+                ${isFetchingWisdom ? 'animate-pulse cursor-wait' : ''}
+              `}
+              title="Use Wisdom Scroll (Get a Hint)"
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+              <LightBulbIcon className={`w-5 h-5 text-white ${isFetchingWisdom ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`} />
+            </button>
+
             {/* Give Up */}
             <button
               onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
@@ -720,6 +759,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 <span className="text-[10px] font-bold text-white/70 group-hover:text-white transition-colors uppercase">Save</span>
               </button>
             )}
+
+
+
           </div>
         </div>
       </div>
@@ -965,6 +1007,42 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           animation: shake 0.7s ease-in-out;
         }
       `}</style>
+      {/* Wisdom Scroll Modal */}
+      {showWisdomModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-amber-100 rounded-[2rem] p-8 max-w-sm w-full shadow-2xl border-[6px] border-amber-800/80 relative rotate-1">
+            {/* Scroll Decoration */}
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-8 bg-amber-900 rounded-full shadow-lg border-2 border-amber-700" />
+            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-32 h-8 bg-amber-900 rounded-full shadow-lg border-2 border-amber-700" />
+
+            <button
+              onClick={() => setShowWisdomModal(false)}
+              className="absolute top-4 right-4 text-amber-900/50 hover:text-amber-900"
+            >
+              <XMarkIcon className="w-8 h-8" />
+            </button>
+
+            <div className="text-center mt-4 mb-2">
+              <span className="text-4xl block mb-2">📜</span>
+              <h3 className="font-serif font-black text-2xl text-amber-900 uppercase tracking-widest">Ancient Wisdom</h3>
+            </div>
+
+            <div className="bg-amber-50 p-6 rounded-xl border-2 border-amber-900/10 min-h-[120px] flex items-center justify-center">
+              <p className="font-serif text-xl text-amber-900 italic text-center font-bold leading-relaxed">
+                "{wisdomHint || "Focus on the question..."}"
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowWisdomModal(false)}
+              className="w-full mt-6 py-3 bg-amber-800 hover:bg-amber-900 text-amber-100 font-bold rounded-xl shadow-lg transition-all active:scale-95 text-lg uppercase tracking-wide border-b-4 border-amber-950"
+            >
+              Thank you, Sage
+            </button>
+          </div>
+        </div>
+      )}
+
     </div >
   );
 };
