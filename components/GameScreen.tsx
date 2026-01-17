@@ -14,6 +14,7 @@ interface GameScreenProps {
   onAction: (answer: string, isCorrect: boolean) => void;
   onTransitionComplete: () => void;
   onGiveUp: () => void;
+  onSaveAndQuit?: () => void;
   soundManager: ReturnType<typeof useSoundManager>;
   missedQuestions: MissedQuestion[];
   topicName: string;
@@ -32,6 +33,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   missedQuestions,
   topicName,
   contextSummary
+  onSaveAndQuit,
+  soundManager
 }) => {
   const [input, setInput] = useState('');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -563,6 +566,32 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               className="bg-black/60 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border border-white/10 hover:bg-red-500/80 transition-all group"
             >
               <XMarkIcon className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Save & Quit (if available) */}
+            {onSaveAndQuit && (
+              <button
+                onClick={() => { soundManager.playButtonClick(); onSaveAndQuit(); }}
+                className="bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2 shadow-lg border border-white/10 hover:bg-blue-500/80 transition-all group hidden md:flex items-center gap-1.5"
+                title="Save & Quit"
+              >
+                <span className="text-[10px] font-bold text-white/70 group-hover:text-white transition-colors uppercase">Save</span>
+              </button>
+            )}
+
+            {/* Wisdom Scroll Button */}
+            <button
+              onClick={handleWisdomScroll}
+              disabled={isFetchingWisdom || showWisdomModal}
+              className={`
+                bg-amber-500/80 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border border-amber-300/30 
+                hover:bg-amber-400 transition-all group relative overflow-hidden
+                ${isFetchingWisdom ? 'animate-pulse cursor-wait' : ''}
+              `}
+              title="Use Wisdom Scroll (Get a Hint)"
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+              <LightBulbIcon className={`w-5 h-5 text-white ${isFetchingWisdom ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`} />
             </button>
           </div>
         </div>
