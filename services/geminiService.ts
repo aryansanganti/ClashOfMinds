@@ -361,3 +361,101 @@ export const getWisdomScrollHint = async (question: string, context: string, cor
     return "The stars are cloudy... I cannot see the path right now.";
   }
 };
+
+export const generateStudyGuide = async (params: {
+  topicName: string;
+  contextSummary?: string;
+  missedQuestions: Array<{ question: string; correctAnswer: string; playerAnswer: string }>;
+  totalQuestions: number;
+  correctAnswers: number;
+}): Promise<any> => {
+  const client = getAiClient();
+
+  const { topicName, contextSummary, missedQuestions, totalQuestions, correctAnswers } = params;
+
+  const prompt = `
+You are an expert educator creating a personalized study guide for a student who just completed a learning game.
+
+**Topic**: ${topicName}
+**Context**: ${contextSummary || 'General knowledge'}
+
+**Performance Summary**:
+- Total Questions: ${totalQuestions}
+- Correct: ${correctAnswers}
+- Incorrect: ${totalQuestions - correctAnswers}
+
+**Missed Questions**:
+${missedQuestions.map((q, idx) => `
+${idx + 1}. Question: "${q.question}"
+   - Correct Answer: ${q.correctAnswer}
+   - Student's Answer: ${q.playerAnswer}
+`).join('\n')}
+
+**Task**: Generate a personalized study guide in JSON format with the following structure:
+{
+  "overallPerformance": "A brief 1-2 sentence summary of their performance",
+  "weakAreas": ["Array of 2-3 specific weak areas identified from missed questions"],
+  "sections": [
+    {
+      "subTopic": "Name of sub-topic that needs review",
+      "explanation": "Brief explanation of why this is important (2-3 sentences)",
+      "keyPoints": ["Array of 3-5 key concepts to remember"],
+      "recommendedFocus": "Specific action they should take to improve"
+    }
+  ],
+  "motivationalMessage": "An encouraging message to keep them motivated (1-2 sentences)"
+}
+
+**Guidelines**:
+1. Be specific and actionable
+2. Focus on the concepts they struggled with
+3. Keep it encouraging and positive
+4. Create 2-4 sections based on the missed questions
+5. Use simple, clear language
+6. Return ONLY valid JSON, no additional text
+`;
+
+  try {
+    const response = await client.models.generateContent({
+      model: "gemini-2.0-flash-exp", // Fast model for quick study guide generation
+      contents: { parts: [{ text: prompt }] },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from AI");
+
+    // Robust JSON extraction
+    let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const startIdx = cleanJson.indexOf('{');
+    const endIdx = cleanJson.lastIndexOf('}');
+
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      cleanJson = cleanJson.substring(startIdx, endIdx + 1);
+    }
+
+    const studyGuide = JSON.parse(cleanJson);
+    return studyGuide;
+
+  } catch (error) {
+    console.error("Failed to generate study guide:", error);
+    // Return a fallback study guide
+    return {
+      overallPerformance: `You answered ${correctAnswers} out of ${totalQuestions} questions correctly.`,
+      weakAreas: ["Review the missed questions carefully"],
+      sections: missedQuestions.slice(0, 3).map(q => ({
+        subTopic: "Review Question",
+        explanation: `You answered "${q.playerAnswer}" but the correct answer was "${q.correctAnswer}".`,
+        keyPoints: [
+          `Question: ${q.question}`,
+          `Correct Answer: ${q.correctAnswer}`,
+          "Take time to understand why this is the correct answer"
+        ],
+        recommendedFocus: "Review this concept and try similar practice questions"
+      })),
+      motivationalMessage: "Keep practicing! Every mistake is a learning opportunity."
+    };
+  }
+};

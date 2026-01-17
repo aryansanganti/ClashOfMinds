@@ -148,3 +148,18 @@ export interface FullGameManifest {
   allTurns: TurnContent[];
   raid?: RaidState; // Optional for Solo, required for Co-op
 }
+
+// Scholar's Report Types
+export interface StudyGuideSection {
+  subTopic: string;
+  explanation: string;
+  keyPoints: string[];
+  recommendedFocus: string;
+}
+
+export interface StudyGuide {
+  overallPerformance: string;
+  weakAreas: string[];
+  sections: StudyGuideSection[];
+  motivationalMessage: string;
+}

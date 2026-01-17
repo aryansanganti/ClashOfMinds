@@ -1,64 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GameState, GameStatus } from '../types';
+import { GameState, GameStatus, MissedQuestion } from '../types';
 import { ProgressBar } from './ProgressBar';
 import { TransparentImage } from './TransparentImage';
-import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon, LightBulbIcon } from '@heroicons/react/24/solid';
+import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import { useSoundManager } from '../hooks/useSoundManager';
-import { RaidState, Player } from '../types';
-import { getWisdomScrollHint } from '../services/geminiService';
-
-const RaidHUD: React.FC<{ raid: RaidState }> = ({ raid }) => {
-  return (
-    <div className="absolute top-20 right-4 w-64 z-40 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-xl ml-auto animate-slideInRight hidden lg:block text-white">
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <h3 className="font-black text-red-400 text-sm uppercase tracking-widest">Global Boss HP</h3>
-          <span className="font-bold text-xs">{Math.ceil(raid.boss_hp)} / {raid.boss_max_hp}</span>
-        </div>
-        <div className="h-3 bg-red-900/50 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-red-500 rounded-full transition-all duration-500"
-            style={{ width: `${(raid.boss_hp / raid.boss_max_hp) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <h3 className="font-black text-slate-300 text-[10px] uppercase tracking-widest mb-2">Raid Party</h3>
-        {raid.players?.filter(p => p.is_bot).map(bot => (
-          <div key={bot.id} className="flex items-center gap-3 bg-white/5 p-2 rounded-xl border border-white/5">
-            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-lg shadow-inner">
-              {bot.avatar}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-xs truncate">{bot.name}</span>
-                <span className={`text-[10px] font-bold ${bot.status === 'ATTACKING' ? 'text-green-400' : bot.status === 'HIT' ? 'text-red-400' : 'text-slate-400'}`}>
-                  {bot.status}
-                </span>
-              </div>
-              <div className="h-1.5 bg-slate-700 rounded-full mt-1 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${bot.hp < 30 ? 'bg-red-500' : 'bg-green-500'}`}
-                  style={{ width: `${(bot.hp / bot.max_hp) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {raid.log && raid.log.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-white/10">
-          <div className="text-[10px] text-slate-300 font-mono opacity-80">
-            {raid.log[raid.log.length - 1]}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
+import { ScholarReport } from './ScholarReport';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -70,6 +16,9 @@ interface GameScreenProps {
   onGiveUp: () => void;
   onSaveAndQuit?: () => void;
   soundManager: ReturnType<typeof useSoundManager>;
+  missedQuestions: MissedQuestion[];
+  topicName: string;
+  contextSummary?: string;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
@@ -80,6 +29,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   onAction,
   onTransitionComplete,
   onGiveUp,
+  soundManager,
+  missedQuestions,
+  topicName,
+  contextSummary
   onSaveAndQuit,
   soundManager
 }) => {
@@ -106,16 +59,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [typewriterComplete, setTypewriterComplete] = useState(false);
   // Store the displayed boss name separately to sync with animation timing
   const [displayedBossName, setDisplayedBossName] = useState(gameState.current_turn.new_boss_name || gameState.theme.boss_name);
+  // Scholar's Report state
+  const [showScholarReport, setShowScholarReport] = useState(false);
 
   // Refs for dynamic movement calculation
   const playerRef = useRef<HTMLDivElement>(null);
   const enemyRef = useRef<HTMLDivElement>(null);
   const [attackDistance, setAttackDistance] = useState<number>(0);
-
-  // Wisdom Scroll State
-  const [wisdomHint, setWisdomHint] = useState<string | null>(null);
-  const [isFetchingWisdom, setIsFetchingWisdom] = useState(false);
-  const [showWisdomModal, setShowWisdomModal] = useState(false);
 
   // Track all active timeouts so we can clear them on unmount
   const activeTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -138,61 +88,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       activeTimeouts.current = [];
     };
   }, []);
-
-  // --- RAID SIMULATION STATE ---
-  const [raidState, setRaidState] = useState<RaidState | undefined>(gameState.raid);
-
-  // Update local raid state if props change (though we manage it locally mostly)
-  useEffect(() => {
-    if (gameState.raid) {
-      // Only update if we don't have one, or to sync major changes? 
-      // For now, let's initialize if missing
-      if (!raidState) setRaidState(gameState.raid);
-    }
-  }, [gameState.raid]);
-
-  // Simulate bot turns whenever turn index changes
-  useEffect(() => {
-    if (!raidState || !waitingForTurn) return;
-
-    // Simulate bots after a small delay
-    const t = setTimeout(() => {
-      setRaidState(prev => {
-        if (!prev) return undefined;
-        const newPrev = { ...prev, log: [...prev.log] };
-
-        // Randomly pick a bot to attack
-        const activeBots = newPrev.players.filter(p => p.is_bot && p.hp > 0);
-        activeBots.forEach(bot => {
-          if (Math.random() > 0.3) {
-            bot.status = 'ATTACKING';
-            newPrev.boss_hp = Math.max(0, newPrev.boss_hp - (Math.random() * 5 + 5));
-            newPrev.log.push(`${bot.name} used ${bot.sub_topic} Attack!`);
-          } else {
-            bot.status = 'HIT';
-            bot.hp = Math.max(0, bot.hp - 10);
-            newPrev.log.push(`${bot.name} took damage!`);
-          }
-        });
-
-        return { ...newPrev };
-      });
-
-      // Reset status after delay
-      setTimeout(() => {
-        setRaidState(prev => {
-          if (!prev) return undefined;
-          const newPrev = { ...prev };
-          newPrev.players.forEach(p => { if (p.is_bot) p.status = 'IDLE'; });
-          return { ...newPrev };
-        });
-      }, 1500);
-
-    }, 2000);
-
-    return () => clearTimeout(t);
-  }, [gameState.stats.current_turn_index]);
-
 
   // When turn content changes, reset waitingForTurn to trigger animations
   useEffect(() => {
@@ -434,42 +329,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     setAttackDistance(0);
     // Now load the next turn (boss image was not changed during wrong answer animation)
     onTransitionComplete();
-    onTransitionComplete();
   };
-
-  const handleWisdomScroll = async () => {
-    if (isFetchingWisdom) return;
-
-    // Play sound
-    soundManager.playButtonClick();
-
-    // If we already have a hint for this question, just show it
-    if (wisdomHint) {
-      setShowWisdomModal(true);
-      return;
-    }
-
-    setIsFetchingWisdom(true);
-    try {
-      const hint = await getWisdomScrollHint(
-        gameState.current_turn.question,
-        gameState.topic_title || gameState.context_summary || "General Knowledge",
-        gameState.current_turn.correct_answer || ""
-      );
-      setWisdomHint(hint);
-      setShowWisdomModal(true);
-    } catch (error) {
-      console.error("Failed to get hint", error);
-    } finally {
-      setIsFetchingWisdom(false);
-    }
-  };
-
-  // Reset hint when turn changes
-  useEffect(() => {
-    setWisdomHint(null);
-    setShowWisdomModal(false);
-  }, [gameState.current_turn.turn_number]);
 
   const renderAnswers = () => {
     const { challenge_type, options } = gameState.current_turn;
@@ -615,14 +475,39 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
-              className="w-full py-4 bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-white border-b-4 border-sky-600 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1"
-            >
-              Back to Menu
-            </button>
+            {/* Buttons */}
+            <div className="space-y-3">
+              {missedQuestions.length > 0 && !showScholarReport && (
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowScholarReport(true); }}
+                  className="w-full py-4 bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-b-4 border-purple-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 flex items-center justify-center gap-2"
+                >
+                  <SparklesIcon className="w-6 h-6" />
+                  View Study Guide
+                </button>
+              )}
+              <button
+                onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
+                className="w-full py-4 bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-white border-b-4 border-sky-600 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1"
+              >
+                Back to Menu
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Scholar's Report Overlay */}
+        {showScholarReport && (
+          <ScholarReport
+            topicName={topicName}
+            contextSummary={contextSummary}
+            missedQuestions={missedQuestions}
+            totalQuestions={gameState.stats.total_turns}
+            correctAnswers={gameState.stats.turns_won}
+            onClose={() => { setShowScholarReport(false); onGiveUp(); }}
+            soundManager={soundManager}
+          />
+        )}
       </div>
     );
   }
@@ -646,9 +531,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           opacity: (!showQuestion || attackingPlayer || attackingEnemy || playerShaking || enemyShaking) ? 0 : 1
         }}
       />
-
-      {/* Raid HUD */}
-      {raidState && <RaidHUD raid={raidState} />}
 
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-50 p-3 md:p-4">
@@ -868,42 +750,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               >
                 {dismissButtonText}
               </button>
-            </div>
-          </div>
-        )
-      }
-
-      {/* Wisdom Scroll Modal */}
-      {
-        showWisdomModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-fadeIn">
-            <div className="relative bg-[#f5e6c8] rounded-sm max-w-lg w-full shadow-2xl text-center p-8 border-[12px] border-amber-700/50 outline outline-4 outline-[#d4b483]">
-
-              {/* Scroll Decoration Top */}
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-[120%] h-8 bg-[#e6d0a0] rounded-full shadow-lg border-b border-[#d4b483]" />
-
-              <div className="relative z-10">
-                <h3 className="font-serif text-3xl font-bold text-amber-900 mb-2 flex items-center justify-center gap-2">
-                  <SparklesIcon className="w-6 h-6 text-amber-600" />
-                  Wisdom Scroll
-                  <SparklesIcon className="w-6 h-6 text-amber-600" />
-                </h3>
-                <div className="w-full h-px bg-amber-900/20 mb-6" />
-
-                <p className="font-serif text-xl leading-relaxed text-amber-950 italic mb-8">
-                  "{wisdomHint || "The ancient scrolls are blank..."}"
-                </p>
-
-                <button
-                  onClick={() => { soundManager.playButtonClick(); setShowWisdomModal(false); }}
-                  className="px-8 py-3 bg-amber-800 hover:bg-amber-700 text-[#f5e6c8] font-bold rounded-lg shadow-lg border-2 border-amber-900 transition-all active:translate-y-1 uppercase tracking-widest text-sm"
-                >
-                  Close Scroll
-                </button>
-              </div>
-
-              {/* Scroll Decoration Bottom */}
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[120%] h-8 bg-[#e6d0a0] rounded-full shadow-lg border-t border-[#d4b483]" />
             </div>
           </div>
         )
