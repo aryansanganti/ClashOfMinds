@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GameState, GameStatus, TurnContent, Difficulty, Gender, PlayerStats, LoadingProgress as LoadingProgressType, PreloadedTurn, CompetitionRoomState } from './types';
+import { GameState, GameStatus, TurnContent, Difficulty, Gender, PlayerStats, LoadingProgress as LoadingProgressType, PreloadedTurn, CompetitionRoomState, MissedQuestion } from './types';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LoginScreen } from './src/components/LoginScreen';
-
-import { GameState, GameStatus, TurnContent, Difficulty, Gender, PlayerStats, LoadingProgress as LoadingProgressType, PreloadedTurn } from './types';
 import { initializeGame, generateGameImage } from './services/geminiService';
 import { loadStats, recordGameStart, recordTurnResult, recordGameEnd } from './services/statsService';
 import { saveGameState, loadGameState, clearSavedGame, hasSavedGame, SavedGameData } from './services/saveService';
@@ -13,14 +11,12 @@ import { LoadingProgress } from './components/LoadingProgress';
 import { LobbyScreen } from './components/LobbyScreen';
 import { CompetitionSetup } from './components/CompetitionSetup';
 import { CompetitionGameScreen } from './components/CompetitionGameScreen';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon } from '@heroicons/react/24/solid';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/solid';
+import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import { Swords } from 'lucide-react';
 import { useSoundManager } from './hooks/useSoundManager';
 import { useMultiplayer } from './hooks/useMultiplayer';
 import { generateDailyQuests } from './services/geminiService';
 import { Quest } from './types';
-import { FireIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 
 // Error popup for quota/rate limit errors
 interface ApiError {
@@ -950,53 +946,57 @@ const GameApp: React.FC = () => {
               )}
 
               {!showSettings && !showStats && (
-                <div className="mb-6 flex gap-3">
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); handleOpenLobby(); }}
-                    className="flex-1 py-3 bg-purple-500 hover:bg-purple-400 text-white border-b-4 border-purple-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
-                  >
-                    <UserGroupIcon className="w-5 h-5" /> Raid
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); setView('COMPETITION_SETUP'); }}
-                    className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white border-b-4 border-red-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
-                  >
-                    <Swords className="w-5 h-5" /> 1v1 Battle
-                  </button>
-              {/* Resume Game Modal */}
-              {showResumeModal && savedGameData && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-                  <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-fadeIn">
-                    <h2 className="text-2xl font-black text-slate-800 mb-4">Continue Your Battle?</h2>
-                    <p className="text-slate-600 mb-2">
-                      You have a saved game from{' '}
-                      <span className="font-bold">
-                        {new Date(savedGameData.timestamp).toLocaleString()}
-                      </span>
-                    </p>
-                    <p className="text-slate-500 text-sm mb-6">
-                      Topic: <span className="font-bold">{savedGameData.gameState.topic_title || 'Unknown'}</span>
-                      {' • '}
-                      Turn {savedGameData.gameState.stats.current_turn_index + 1} of {savedGameData.gameState.stats.total_turns}
-                      {' • '}
-                      HP: {savedGameData.gameState.stats.player_hp}/{savedGameData.gameState.stats.player_max_hp}
-                    </p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={handleResumeGame}
-                        className="flex-1 bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-4 border-green-700 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
-                      >
-                        Resume
-                      </button>
-                      <button
-                        onClick={handleStartNewGame}
-                        className="flex-1 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
-                      >
-                        New Game
-                      </button>
-                    </div>
+                <>
+                  <div className="mb-6 flex gap-3">
+                    <button
+                      onClick={() => { soundManager.playButtonClick(); handleOpenLobby(); }}
+                      className="flex-1 py-3 bg-purple-500 hover:bg-purple-400 text-white border-b-4 border-purple-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
+                    >
+                      <UserGroupIcon className="w-5 h-5" /> Raid
+                    </button>
+                    <button
+                      onClick={() => { soundManager.playButtonClick(); setView('COMPETITION_SETUP'); }}
+                      className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white border-b-4 border-red-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
+                    >
+                      <Swords className="w-5 h-5" /> 1v1 Battle
+                    </button>
                   </div>
-                </div>
+                  {/* Resume Game Modal */}
+                  {showResumeModal && savedGameData && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+                      <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-fadeIn">
+                        <h2 className="text-2xl font-black text-slate-800 mb-4">Continue Your Battle?</h2>
+                        <p className="text-slate-600 mb-2">
+                          You have a saved game from{' '}
+                          <span className="font-bold">
+                            {new Date(savedGameData.timestamp).toLocaleString()}
+                          </span>
+                        </p>
+                        <p className="text-slate-500 text-sm mb-6">
+                          Topic: <span className="font-bold">{savedGameData.gameState.topic_title || 'Unknown'}</span>
+                          {' • '}
+                          Turn {savedGameData.gameState.stats.current_turn_index + 1} of {savedGameData.gameState.stats.total_turns}
+                          {' • '}
+                          HP: {savedGameData.gameState.stats.player_hp}/{savedGameData.gameState.stats.player_max_hp}
+                        </p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={handleResumeGame}
+                            className="flex-1 bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-4 border-green-700 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
+                          >
+                            Resume
+                          </button>
+                          <button
+                            onClick={handleStartNewGame}
+                            className="flex-1 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
+                          >
+                            New Game
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <form onSubmit={(e) => { e.preventDefault(); handleStartGame(); }} className="space-y-6">

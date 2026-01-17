@@ -207,6 +207,8 @@ export interface Quest {
   topic?: string; // If specific topic required
   rewardXp: number;
   isCompleted: boolean;
+}
+
 // Scholar's Report Types
 export interface StudyGuideSection {
   subTopic: string;
