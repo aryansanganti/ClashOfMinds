@@ -259,8 +259,7 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
 
     const handleGameOver = () => {
         setGameStatus('FINISHED');
-        const winnerId = playerScore >= opponentScore ? roomState.host.id : roomState.opponent!.id;
-        setTimeout(() => onGameEnd(winnerId, playerScore, opponentScore), 1000);
+        // Removed auto-close timeout.
     };
 
     // Chat
@@ -324,8 +323,6 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
         );
     };
 
-    if (gameStatus === 'FINISHED') return null; // Handled by onGameEnd / Parent
-
     return (
         <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 overflow-hidden">
 
@@ -336,7 +333,7 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
             </div>
 
             {/* TOP HUD (Battle Specific) */}
-            <div className="absolute top-4 left-0 right-0 z-50 px-4">
+            <div className={`absolute top-4 left-0 right-0 z-50 px-4 transition-all duration-500 ${gameStatus === 'FINISHED' ? 'opacity-0 -translate-y-10' : 'opacity-100'}`}>
                 <div className="max-w-6xl mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className="bg-black/60 backdrop-blur-md rounded-2xl p-2 pr-6 border border-indigo-500/30 flex items-center gap-3">
@@ -375,7 +372,7 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
             </div>
 
             {/* NARRATIVE */}
-            <div className={`absolute top-32 left-0 right-0 z-30 flex justify-center transition-all duration-500 ${showNarrative && !selectedOption ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+            <div className={`absolute top-32 left-0 right-0 z-30 flex justify-center transition-all duration-500 ${showNarrative && !selectedOption && gameStatus !== 'FINISHED' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
                 <div className="bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/10">
                     <p className="text-white font-bold italic text-lg text-center">
                         <span className="text-yellow-400 mr-2">✦</span>
@@ -387,7 +384,7 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
             </div>
 
             {/* QUESTION CARD (Center) */}
-            <div className="absolute top-[20%] left-0 right-0 z-40 flex justify-center pointer-events-none">
+            <div className={`absolute top-[20%] left-0 right-0 z-40 flex justify-center pointer-events-none transition-all duration-500 ${gameStatus === 'FINISHED' ? 'opacity-0 scale-95 translate-y-10' : ''}`}>
                 <div className={`w-full max-w-2xl px-4 transition-all duration-700 ${(showQuestion && !isProcessing) ? 'pointer-events-auto opacity-100 translate-y-0 scale-100' : 'pointer-events-none opacity-0 translate-y-10 scale-95'}`}>
                     <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-10 shadow-2xl border-b-8 border-slate-200">
                         <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Question {currentTurnIndex + 1}</p>
@@ -400,7 +397,7 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
             </div>
 
             {/* BATTLE ARENA (Bottom) */}
-            <div className="absolute bottom-0 left-0 right-0 h-[40vh] z-20 pointer-events-none">
+            <div className={`absolute bottom-0 left-0 right-0 h-[40vh] z-20 pointer-events-none transition-all duration-1000 ${gameStatus === 'FINISHED' ? 'blur-sm opacity-50' : ''}`}>
                 <div className="max-w-6xl mx-auto h-full relative px-8 flex justify-between items-end pb-8">
 
                     {/* PLAYER */}
@@ -460,7 +457,7 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
             </div>
 
             {/* CHAT OVERLAY */}
-            <div className="absolute left-6 bottom-6 z-50">
+            <div className={`absolute left-6 bottom-6 z-50 transition-all duration-500 ${gameStatus === 'FINISHED' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <div className="relative">
                     {showChat && (
                         <div className="absolute bottom-20 left-0 w-80 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl flex flex-col h-96 animate-slideUp origin-bottom-left">
@@ -530,6 +527,73 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
                     </button>
                 </div>
             </div>
+
+            {/* --- SCORECARD (Appears on FINISHED) --- */}
+            {gameStatus === 'FINISHED' && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+                    <div className="bg-white rounded-[2rem] p-8 md:p-12 w-full max-w-2xl shadow-2xl border-b-8 border-slate-200 relative overflow-hidden animate-slideUp">
+                        {/* Winner Banner */}
+                        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-indigo-500 to-purple-600 -skew-y-3 transform origin-top-left -translate-y-10" />
+
+                        <div className="relative text-center mb-12">
+                            {playerScore >= opponentScore ? (
+                                <>
+                                    <div className="text-6xl mb-4 animate-bounce">🏆</div>
+                                    <h2 className="text-5xl font-black text-white drop-shadow-lg uppercase tracking-tight skew-x-[-10deg]">VICTORY!</h2>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-6xl mb-4 animate-pulse">💀</div>
+                                    <h2 className="text-5xl font-black text-slate-700 drop-shadow-white uppercase tracking-tight">DEFEAT</h2>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Players Side by Side */}
+                        <div className="flex items-end justify-center gap-8 mb-12 relative z-10">
+                            {/* You */}
+                            <div className="flex flex-col items-center">
+                                <div className={`w-32 h-32 rounded-full border-8 shadow-xl mb-4 relative overflow-hidden bg-indigo-100 ${playerScore >= opponentScore ? 'border-yellow-400 ring-4 ring-yellow-200 scale-110 z-20' : 'border-slate-200 grayscale opacity-80'}`}>
+                                    {roomState.host.imageUrl ? (
+                                        <img src={roomState.host.imageUrl} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-6xl">{roomState.host.avatar}</div>
+                                    )}
+                                    {playerScore >= opponentScore && <div className="absolute bottom-0 inset-x-0 bg-yellow-400 text-yellow-900 font-bold text-xs uppercase py-1 text-center">Winner</div>}
+                                </div>
+                                <p className="font-bold text-indigo-900">YOU</p>
+                                <p className={`text-4xl font-black ${playerScore >= opponentScore ? 'text-indigo-600' : 'text-slate-400'}`}>{playerScore}</p>
+                            </div>
+
+                            <div className="pb-12 text-4xl font-black text-slate-300">VS</div>
+
+                            {/* Opponent */}
+                            <div className="flex flex-col items-center">
+                                <div className={`w-32 h-32 rounded-full border-8 shadow-xl mb-4 relative overflow-hidden bg-red-100 ${playerScore < opponentScore ? 'border-yellow-400 ring-4 ring-yellow-200 scale-110 z-20' : 'border-slate-200 grayscale opacity-80'}`}>
+                                    {roomState.opponent?.imageUrl ? (
+                                        <img src={roomState.opponent.imageUrl} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-6xl">{roomState.opponent?.avatar}</div>
+                                    )}
+                                    {playerScore < opponentScore && <div className="absolute bottom-0 inset-x-0 bg-yellow-400 text-yellow-900 font-bold text-xs uppercase py-1 text-center">Winner</div>}
+                                </div>
+                                <p className="font-bold text-red-900">{roomState.opponent?.name}</p>
+                                <p className={`text-4xl font-black ${playerScore < opponentScore ? 'text-red-600' : 'text-slate-400'}`}>{opponentScore}</p>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                const winnerId = playerScore >= opponentScore ? roomState.host.id : roomState.opponent!.id;
+                                onGameEnd(winnerId, playerScore, opponentScore);
+                            }}
+                            className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-xl uppercase tracking-widest hover:bg-slate-700 active:scale-95 transition-all shadow-xl"
+                        >
+                            Continue
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 @keyframes shake {

@@ -252,6 +252,7 @@ const GameApp: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [useGhosts, setUseGhosts] = useState(false); // Ghosts of Battles Past Toggle
   const [showGrimoire, setShowGrimoire] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar toggle state
   const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'COMPETITION_GAME' | 'OFFLINE_MENU'>('MENU');
   const [offlineBattles, setOfflineBattles] = useState<OfflineBattlePack[]>([]);
   const [isPreloading, setIsPreloading] = useState(false);
@@ -1213,7 +1214,7 @@ const GameApp: React.FC = () => {
           </div>
         </div>
       ) : view === 'MENU' ? (
-        <div className="relative flex items-center justify-center min-h-screen p-4 overflow-hidden">
+        <div className="relative flex items-start justify-center min-h-screen p-4 overflow-hidden pt-[40vh]">
           {/* Background Image */}
           <div className="absolute inset-0 z-0">
             <img
@@ -1231,91 +1232,104 @@ const GameApp: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-[2rem] border-b-8 border-slate-200 p-6 md:p-8 shadow-xl relative transition-all duration-300 ease-out">
-              {/* Menu Button & Expanding Buttons */}
-              <div className="absolute top-4 right-4 z-50 flex items-center gap-2 pointer-events-auto">
-                {/* Expanding buttons - animate from right (only show when menu open and not in settings/stats) */}
-                <div className={`flex gap-2 transition-all duration-300 ease-out ${showMenu && !showSettings && !showStats ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'}`}>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); soundManager.toggleSound(); }}
-                    disabled={loading}
-                    className={`p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 ${soundManager.isSoundEnabled ? 'text-green-500 hover:text-green-600' : 'text-slate-400 hover:text-slate-500'}`}
-                  >
-                    {soundManager.isSoundEnabled ? <SpeakerWaveIcon className="w-6 h-6" /> : <SpeakerXMarkIcon className="w-6 h-6" />}
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); setShowQuests(true); setShowSettings(false); setShowMenu(false); }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-purple-500"
-                  >
-                    <FireIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); setShowGrimoire(true); setShowSettings(false); setShowMenu(false); }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-indigo-500"
-                  >
-                    <BookOpenIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      soundManager.playButtonClick();
-                      setOfflineBattles(getOfflineBattles());
-                      setView('OFFLINE_MENU');
-                      setShowSettings(false);
-                      setShowMenu(false);
-                    }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-slate-600"
-                    title="Offline Mode"
-                  >
-                    <WifiIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); setShowStats(true); setShowSettings(false); setShowMenu(false); }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-amber-500"
-                  >
-                    <TrophyIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); setShowSettings(true); setShowStats(false); setShowMenu(false); }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-sky-500"
-                  >
-                    <Cog6ToothIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); logout(); }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-red-500"
-                    title="Sign Out"
-                  >
-                    <ArrowLeftOnRectangleIcon className="w-6 h-6" />
-                  </button>
-                </div>
+              {/* FIXED SIDEBAR - TOP RIGHT TOGGLEABLE */}
 
-                {/* Menu/Close toggle button */}
+              {/* Toggle Button */}
+              <button
+                onClick={() => { soundManager.playButtonClick(); setIsSidebarOpen(!isSidebarOpen); }}
+                className={`fixed top-4 right-4 z-[60] p-3 rounded-xl shadow-lg border-b-4 transition-all active:scale-95 active:border-b-0 active:translate-y-1 bg-white text-slate-700 border-slate-200 hover:text-indigo-600`}
+              >
+                {isSidebarOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
+              </button>
+
+              {/* Sidebar Content */}
+              <div className={`fixed top-20 right-4 z-50 flex flex-col gap-3 transition-all duration-300 origin-top-right ${isSidebarOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}>
+                {/* Sound Toggle */}
+                <button
+                  onClick={() => { soundManager.playButtonClick(); soundManager.toggleSound(); }}
+                  className="group relative flex items-center justify-end"
+                >
+                  <span className="absolute right-14 bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    {soundManager.isSoundEnabled ? 'Mute Sound' : 'Enable Sound'}
+                  </span>
+                  <div className={`p-3 rounded-xl shadow-lg border-b-4 transition-all active:scale-95 active:border-b-0 active:translate-y-1 ${soundManager.isSoundEnabled ? 'bg-white text-green-500 border-slate-200 hover:text-green-600' : 'bg-slate-100 text-slate-400 border-slate-300'}`}>
+                    {soundManager.isSoundEnabled ? <SpeakerWaveIcon className="w-6 h-6" /> : <SpeakerXMarkIcon className="w-6 h-6" />}
+                  </div>
+                </button>
+
+                <div className="h-px w-8 bg-slate-300 mx-auto my-1" />
+
+                {/* Quests */}
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowQuests(true); setShowSettings(false); setShowMenu(false); setIsSidebarOpen(false); }}
+                  className="group relative flex flex-col items-center"
+                >
+                  <div className="p-3 bg-white hover:bg-purple-50 text-slate-400 hover:text-purple-500 rounded-xl shadow-lg border-b-4 border-slate-200 hover:border-purple-200 transition-all active:scale-95 active:border-b-0 active:translate-y-1">
+                    <FireIcon className="w-6 h-6" />
+                  </div>
+                  <span className="mt-1 text-[10px] font-black uppercase text-slate-500 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded shadow-sm">Quests</span>
+                </button>
+
+                {/* Grimoire */}
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowGrimoire(true); setShowSettings(false); setShowMenu(false); setIsSidebarOpen(false); }}
+                  className="group relative flex flex-col items-center"
+                >
+                  <div className="p-3 bg-white hover:bg-indigo-50 text-slate-400 hover:text-indigo-500 rounded-xl shadow-lg border-b-4 border-slate-200 hover:border-indigo-200 transition-all active:scale-95 active:border-b-0 active:translate-y-1">
+                    <BookOpenIcon className="w-6 h-6" />
+                  </div>
+                  <span className="mt-1 text-[10px] font-black uppercase text-slate-500 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded shadow-sm">Grimoire</span>
+                </button>
+
+                {/* Offline */}
                 <button
                   onClick={() => {
                     soundManager.playButtonClick();
-                    if (showSettings || showStats) {
-                      // Close settings/stats and go back to main menu
-                      setShowSettings(false);
-                      setShowStats(false);
-                      setShowMenu(false);
-                    } else {
-                      // Toggle menu
-                      setShowMenu(!showMenu);
-                    }
+                    setOfflineBattles(getOfflineBattles());
+                    setView('OFFLINE_MENU');
+                    setIsSidebarOpen(false);
                   }}
-                  disabled={loading}
-                  className={`p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 ${showMenu || showSettings || showStats ? 'text-sky-500' : 'text-slate-400 hover:text-sky-500'}`}
+                  className="group relative flex flex-col items-center"
                 >
-                  {showSettings || showStats ? (
-                    <XMarkIcon className="w-6 h-6" />
-                  ) : (
-                    <Bars3Icon className="w-6 h-6" />
-                  )}
+                  <div className="p-3 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl shadow-lg border-b-4 border-slate-200 hover:border-slate-300 transition-all active:scale-95 active:border-b-0 active:translate-y-1">
+                    <WifiIcon className="w-6 h-6" />
+                  </div>
+                  <span className="mt-1 text-[10px] font-black uppercase text-slate-500 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded shadow-sm">Offline</span>
+                </button>
+
+                {/* Stats */}
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowStats(true); setShowSettings(false); setIsSidebarOpen(false); }}
+                  className="group relative flex flex-col items-center"
+                >
+                  <div className="p-3 bg-white hover:bg-amber-50 text-slate-400 hover:text-amber-500 rounded-xl shadow-lg border-b-4 border-slate-200 hover:border-amber-200 transition-all active:scale-95 active:border-b-0 active:translate-y-1">
+                    <TrophyIcon className="w-6 h-6" />
+                  </div>
+                  <span className="mt-1 text-[10px] font-black uppercase text-slate-500 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded shadow-sm">Stats</span>
+                </button>
+
+                <div className="h-px w-8 bg-slate-300 mx-auto my-1" />
+
+                {/* Settings */}
+                <button
+                  onClick={() => { soundManager.playButtonClick(); setShowSettings(true); setShowStats(false); setIsSidebarOpen(false); }}
+                  className="group relative flex flex-col items-center"
+                >
+                  <div className="p-3 bg-white hover:bg-sky-50 text-slate-400 hover:text-sky-500 rounded-xl shadow-lg border-b-4 border-slate-200 hover:border-sky-200 transition-all active:scale-95 active:border-b-0 active:translate-y-1">
+                    <Cog6ToothIcon className="w-6 h-6" />
+                  </div>
+                  <span className="mt-1 text-[10px] font-black uppercase text-slate-500 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded shadow-sm">Settings</span>
+                </button>
+
+                {/* Logout */}
+                <button
+                  onClick={() => { soundManager.playButtonClick(); logout(); }}
+                  className="group relative flex flex-col items-center"
+                >
+                  <div className="p-3 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl shadow-lg border-b-4 border-slate-200 hover:border-red-200 transition-all active:scale-95 active:border-b-0 active:translate-y-1">
+                    <ArrowLeftOnRectangleIcon className="w-6 h-6" />
+                  </div>
+                  <span className="mt-1 text-[10px] font-black uppercase text-slate-500 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded shadow-sm">Sign Out</span>
                 </button>
               </div>
 
@@ -1615,46 +1629,32 @@ const GameApp: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="text-center font-black text-slate-300 text-xs tracking-widest uppercase py-2">- OR -</div>
+                      {/* Compact Upload & OR */}
+                      <div className="flex items-center gap-3">
+                        <div className="font-black text-slate-300 text-xs tracking-widest uppercase whitespace-nowrap">- OR -</div>
 
-                      {/* File Upload Area */}
-                      <div className="relative group">
-
-                        {file ? (
-                          <div className={`border-4 rounded-2xl p-6 flex flex-col items-center justify-center transition-all border-sky-400 bg-sky-50`}>
-                            <button
-                              type="button"
-                              onClick={clearFile}
-                              disabled={loading}
-                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-20 disabled:opacity-50"
-                            >
-                              <XMarkIcon className="w-5 h-5" />
-                            </button>
-
-                            {file.type.includes('pdf') ? (
-                              <DocumentTextIcon className="w-10 h-10 mb-2 text-sky-500" />
+                        <label className="flex-1 cursor-pointer group">
+                          <input type="file" accept="image/*,application/pdf" onChange={handleFileChange} disabled={loading} className="hidden" />
+                          <div className={`
+                                flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed transition-all
+                                ${file
+                              ? 'bg-sky-50 border-sky-300 text-sky-600 shadow-md'
+                              : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-500 hover:bg-white'}
+                            `}>
+                            {file ? (
+                              <>
+                                {file.type.includes('pdf') ? <DocumentTextIcon className="w-5 h-5" /> : <PhotoIcon className="w-5 h-5" />}
+                                <span className="font-bold text-xs truncate max-w-[100px]">{file.name}</span>
+                                <button onClick={(e) => { e.preventDefault(); clearFile(); }} className="p-1 hover:bg-sky-200 rounded-full"><XMarkIcon className="w-3 h-3" /></button>
+                              </>
                             ) : (
-                              <PhotoIcon className="w-10 h-10 mb-2 text-sky-500" />
+                              <>
+                                <PhotoIcon className="w-5 h-5" />
+                                <span className="font-bold text-xs uppercase tracking-wide">Upload Photo/PDF</span>
+                              </>
                             )}
-
-                            <span className="font-black text-sm text-sky-600 uppercase tracking-wide">
-                              {file.type.includes('pdf') ? "PDF Loaded!" : "Photo Loaded!"}
-                            </span>
-                            <span className="text-xs text-sky-400 font-bold mt-1 max-w-[200px] truncate">
-                              {file.name}
-                            </span>
                           </div>
-                        ) : (
-                          <div className="relative cursor-pointer">
-                            <input type="file" accept="image/*,application/pdf" onChange={handleFileChange} disabled={loading} className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed" />
-                            <div className="border-dashed border-4 rounded-2xl p-6 flex flex-col items-center justify-center transition-all border-slate-200 bg-slate-50 hover:bg-slate-100 group-hover:border-sky-300">
-                              <PhotoIcon className="w-10 h-10 mb-2 text-slate-300 group-hover:text-sky-300 transition-colors" />
-                              <span className="font-bold text-sm text-slate-400 group-hover:text-sky-400 transition-colors">
-                                Upload Photo / PDF
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                        </label>
                       </div>
                     </div>
 
