@@ -164,7 +164,10 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
     current_turn_index: 0,
     total_turns: turns,
     turns_won: 0,
-    turns_lost: 0
+    turns_lost: 0,
+    mana: 50,              // Starting mana
+    max_mana: 200,         // Maximum mana capacity
+    active_powerups: []    // No active power-ups at start
   };
   // Ensure stats object exists and has all keys filled
   state.stats = { ...defaultStats, ...(state.stats || {}) };
@@ -176,8 +179,10 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
   state.stats.player_hp = defaultStats.player_hp;
   state.stats.player_max_hp = defaultStats.player_max_hp;
   state.stats.turns_won = 0;
-  state.stats.turns_won = 0;
   state.stats.turns_lost = 0;
+  state.stats.mana = defaultStats.mana;
+  state.stats.max_mana = defaultStats.max_mana;
+  state.stats.active_powerups = [];
 
   // --- RAID INITIALIZATION ---
   if (params.mode === 'COOP') {

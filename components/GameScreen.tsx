@@ -69,6 +69,7 @@ interface GameScreenProps {
   onTransitionComplete: () => void;
   onGiveUp: () => void;
   onSaveAndQuit?: () => void;
+  onUsePowerup?: (type: 'SHIELD') => void;
   soundManager: ReturnType<typeof useSoundManager>;
 }
 
@@ -81,6 +82,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   onTransitionComplete,
   onGiveUp,
   onSaveAndQuit,
+  onUsePowerup,
   soundManager
 }) => {
   const [input, setInput] = useState('');
@@ -481,7 +483,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       return (
         <div className={`grid grid-cols-2 gap-2 md:gap-3 lg:gap-4`}>
           {displayOptions.map((opt, idx) => {
-            const isTrue = opt.toUpperCase() === 'TRUE';
+            const isTrueFalse = gameState.current_turn.challenge_type === 'TRUE_FALSE';
+            const isTrue = opt.toLowerCase() === 'true';
             const isSelected = selectedOption === opt;
 
             let btnClass = '';
@@ -678,6 +681,41 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </div>
               <span className="text-white/50 text-[10px] md:text-xs font-bold uppercase hidden sm:block">Question</span>
             </div>
+
+            {/* Mana Bar */}
+            <div className="bg-black/60 backdrop-blur-md rounded-2xl px-3 py-2 md:px-4 md:py-2.5 shadow-lg border border-white/10 flex items-center gap-2 min-w-[100px]">
+              <span className="text-blue-400 text-lg">💧</span>
+              <div className="flex-1 min-w-[60px]">
+                <div className="h-2 bg-blue-900/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300"
+                    style={{ width: `${(gameState.stats.mana / gameState.stats.max_mana) * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] font-bold text-white/70 mt-0.5">
+                  <span>{gameState.stats.mana}</span>
+                  <span>{gameState.stats.max_mana}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Shield Power-up Button */}
+            {onUsePowerup && (
+              <button
+                onClick={() => onUsePowerup('SHIELD')}
+                disabled={gameState.stats.mana < 30 || gameState.stats.active_powerups.some(p => p.type === 'SHIELD')}
+                className="bg-purple-500/80 backdrop-blur-md rounded-2xl px-3 py-2 shadow-lg border border-purple-300/30 hover:bg-purple-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed relative group"
+                title="Shield (30 mana) - Block next damage"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg">🛡️</span>
+                  <span className="text-white font-bold text-xs hidden md:block">30</span>
+                </div>
+                {gameState.stats.active_powerups.some(p => p.type === 'SHIELD') && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-black/60" />
+                )}
+              </button>
+            )}
             {/* Give Up */}
             <button
               onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}

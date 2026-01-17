@@ -352,19 +352,29 @@ const GameApp: React.FC = () => {
         newStatus = GameStatus.WON;
       }
     } else {
-      // Damage system based on difficulty
-      const totalQuestions = Math.max(1, gameState.stats.total_turns);
-      let allowedMistakes: number;
-      if (difficulty === 'EASY') {
-        allowedMistakes = Math.max(3, Math.ceil(totalQuestions * 0.6));
-      } else if (difficulty === 'HARD') {
-        allowedMistakes = Math.max(2, Math.ceil(totalQuestions * 0.25));
-      } else {
-        allowedMistakes = Math.max(2, Math.ceil(totalQuestions * 0.4));
-      }
+      // Check for active Shield power-up
+      const hasShield = gameState.stats.active_powerups.some(p => p.type === 'SHIELD');
 
-      const damage = Math.ceil(gameState.stats.player_max_hp / allowedMistakes);
-      newPlayerHp = Math.max(0, gameState.stats.player_hp - damage);
+      if (hasShield) {
+        // Shield negates damage!
+        newPlayerHp = gameState.stats.player_hp;
+        // Remove shield after use
+        gameState.stats.active_powerups = gameState.stats.active_powerups.filter(p => p.type !== 'SHIELD');
+      } else {
+        // Damage system based on difficulty
+        const totalQuestions = Math.max(1, gameState.stats.total_turns);
+        let allowedMistakes: number;
+        if (difficulty === 'EASY') {
+          allowedMistakes = Math.max(3, Math.ceil(totalQuestions * 0.6));
+        } else if (difficulty === 'HARD') {
+          allowedMistakes = Math.max(2, Math.ceil(totalQuestions * 0.25));
+        } else {
+          allowedMistakes = Math.max(2, Math.ceil(totalQuestions * 0.4));
+        }
+
+        const damage = Math.ceil(gameState.stats.player_max_hp / allowedMistakes);
+        newPlayerHp = Math.max(0, gameState.stats.player_hp - damage);
+      }
 
       if (newPlayerHp <= 0) {
         newStatus = GameStatus.LOST;
@@ -402,6 +412,15 @@ const GameApp: React.FC = () => {
     pendingNextTurnIndex.current = nextIndex;
     console.log("handleAction - setting pendingNextTurnIndex to:", nextIndex);
 
+    // Calculate mana change
+    const manaGain = isCorrect ? 20 : 0;
+    const newMana = Math.min(gameState.stats.max_mana, gameState.stats.mana + manaGain);
+
+    // Remove expired power-ups
+    const activePowerups = gameState.stats.active_powerups.filter(
+      p => !p.expires_turn || p.expires_turn > gameState.stats.current_turn_index + 1
+    );
+
     setGameState(prev => prev ? ({
       ...prev,
       game_status: newStatus,
@@ -411,7 +430,9 @@ const GameApp: React.FC = () => {
         streak: newStreak,
         current_turn_index: prev.stats.current_turn_index + 1,
         turns_won: isCorrect ? prev.stats.turns_won + 1 : prev.stats.turns_won,
-        turns_lost: isCorrect ? prev.stats.turns_lost : prev.stats.turns_lost + 1
+        turns_lost: isCorrect ? prev.stats.turns_lost : prev.stats.turns_lost + 1,
+        mana: newMana,
+        active_powerups: activePowerups
       }
     }) : null);
 
@@ -589,6 +610,29 @@ const GameApp: React.FC = () => {
 
     // Return to menu
     handleReset();
+  };
+
+  // Power-up purchase functions
+  const handleUsePowerup = (type: 'SHIELD') => {
+    if (!gameState) return;
+
+    const cost = 30; // Shield cost
+
+    if (gameState.stats.mana < cost) {
+      alert('Not enough mana!');
+      return;
+    }
+
+    soundManager.playButtonClick();
+
+    setGameState(prev => prev ? ({
+      ...prev,
+      stats: {
+        ...prev.stats,
+        mana: prev.stats.mana - cost,
+        active_powerups: [...prev.stats.active_powerups, { type }]
+      }
+    }) : null);
   };
 
   const handleOpenLobby = () => {
@@ -1074,6 +1118,7 @@ const GameApp: React.FC = () => {
           onTransitionComplete={handleTransitionComplete}
           onGiveUp={handleReset}
           onSaveAndQuit={handleSaveAndQuit}
+          onUsePowerup={handleUsePowerup}
           soundManager={soundManager}
         />
       ) : null
