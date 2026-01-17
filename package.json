@@ -1,5 +1,5 @@
 {
-  "name": "Clash of Minds",
+  "name": "clash-of-minds",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,15 +13,12 @@
     "@heroicons/react": "^2.2.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
+    "firebase": "^12.8.0",
     "lucide-react": "^0.556.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3"
-    "firebase": "^12.8.0",
-    "lucide-react": "^0.556.0",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

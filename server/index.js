@@ -6,27 +6,38 @@ import cors from 'cors';
 const app = express();
 app.use(cors());
 
+// Health check endpoint for hosting services
+app.get('/', (req, res) => {
+    res.json({ status: 'ok', message: 'Clash of Minds Multiplayer Server' });
+});
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'healthy', rooms: rooms.size });
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: "*",
+        origin: "*", // Allow all origins (configure specific origins in production)
         methods: ["GET", "POST"]
     },
     maxHttpBufferSize: 1e7 // 10 MB for large images
 });
 
-const PORT = 3001;
+// Use PORT from environment (for cloud hosting) or default to 3001
+const PORT = process.env.PORT || 3001;
 const rooms = new Map();
 
 io.on('connection', (socket) => {
-    console.log(`User Connected: ${socket.id}`);
+    console.log(`[${new Date().toISOString()}] User Connected: ${socket.id}`);
 
-    // Join Room - accepts { roomId, player } from client
+    // Join Room
     socket.on('join_room', (data) => {
-        const { roomId, player } = data; // Changed from 'profile' to 'player'
+        const { roomId, player } = data;
 
         if (!player || !roomId) {
             console.error('Invalid join_room data:', data);
+            socket.emit('error', { message: 'Invalid room data' });
             return;
         }
 
@@ -37,7 +48,8 @@ io.on('connection', (socket) => {
             room = {
                 id: roomId,
                 host: player,
-                opponent: null
+                opponent: null,
+                createdAt: Date.now()
             };
             rooms.set(roomId, room);
             console.log(`Room ${roomId} created by ${player.name}`);
@@ -68,10 +80,23 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('User Disconnected:', socket.id);
+        console.log(`[${new Date().toISOString()}] User Disconnected:`, socket.id);
     });
 });
 
+// Cleanup old rooms every 30 minutes
+setInterval(() => {
+    const now = Date.now();
+    const OLD_ROOM_THRESHOLD = 60 * 60 * 1000; // 1 hour
+
+    for (const [roomId, room] of rooms.entries()) {
+        if (now - room.createdAt > OLD_ROOM_THRESHOLD) {
+            rooms.delete(roomId);
+            console.log(`Cleaned up old room: ${roomId}`);
+        }
+    }
+}, 30 * 60 * 1000);
+
 httpServer.listen(PORT, () => {
-    console.log(`Socket.io server running on port ${PORT}`);
+    console.log(`🚀 Clash of Minds Multiplayer Server running on port ${PORT}`);
 });

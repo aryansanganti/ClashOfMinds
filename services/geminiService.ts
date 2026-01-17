@@ -101,6 +101,18 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
     promptText = `Create a wacky cartoon battle about: ${params.topic}. The player character is a ${playerDesc}. The game will last ${turns} turns. Generate ALL ${turns} turns upfront in the all_turns array. ${difficultyPrompt}`;
   }
 
+  // --- KNOWLEDGE SHARDS / GHOSTS OF BATTLES PAST ---
+  if (params.knowledgeShards && params.knowledgeShards.length > 0) {
+    const shardText = params.knowledgeShards.map(s => `"${s.question}" (Correct: ${s.correctAnswer})`).join('\n');
+    promptText += `\n\nCRITICAL INSTRUCTION - GHOSTS OF BATTLES PAST:
+    The player has previously struggled with these specific concepts (Knowledge Shards):
+    ${shardText}
+    
+    You MUST weave at least ${Math.min(3, params.knowledgeShards.length)} of these concepts back into the new battle to help them practice. 
+    Rephrase the questions slightly or present them in a new context within the story. 
+    Make the "Boss" taunt the player about these past failures if possible.`;
+  }
+
 
   parts.push({ text: promptText });
 

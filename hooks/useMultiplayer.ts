@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { PlayerProfile } from '../types';
 
-// Explicit connection to backend server
-const SERVER_URL = 'http://localhost:3001';
+// Use environment variable for server URL, fallback to localhost for dev
+const SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3001';
 
 export const useMultiplayer = () => {
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -12,23 +12,24 @@ export const useMultiplayer = () => {
     const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
+        console.log('[Multiplayer] Connecting to:', SERVER_URL);
         const s = io(SERVER_URL, {
-            transports: ['websocket', 'polling'], // Try websocket first
+            transports: ['websocket', 'polling'],
         });
         socketRef.current = s;
         setSocket(s);
 
         s.on('connect', () => {
-            console.log('Connected to socket server:', s.id);
+            console.log('[Multiplayer] Connected:', s.id);
             setIsConnected(true);
         });
 
         s.on('connect_error', (err) => {
-            console.error('Socket connection error:', err.message);
+            console.error('[Multiplayer] Connection error:', err.message);
         });
 
         s.on('disconnect', () => {
-            console.log('Disconnected from socket server');
+            console.log('[Multiplayer] Disconnected');
             setIsConnected(false);
         });
 
@@ -53,12 +54,17 @@ export const useMultiplayer = () => {
         socketRef.current?.emit('chat_message', { roomId, playerId, message });
     };
 
+    const requestGameStart = (roomId: string, gameConfig: any) => {
+        socketRef.current?.emit('start_game_request', { roomId, gameConfig });
+    };
+
     return {
         socket,
         isConnected,
         messages,
         joinRoom,
         updateScore,
-        sendChat
+        sendChat,
+        requestGameStart
     };
 };

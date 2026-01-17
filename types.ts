@@ -75,6 +75,7 @@ export interface InitGameParams {
   ethnicity: string;
   mode?: 'SOLO' | 'COOP';
   players?: string[]; // Names of friends for Co-op
+  knowledgeShards?: MissedQuestion[]; // Ghosts of battles past
 }
 
 export interface DebugTurn {
@@ -207,6 +208,8 @@ export interface Quest {
   topic?: string; // If specific topic required
   rewardXp: number;
   isCompleted: boolean;
+}
+
 // Scholar's Report Types
 export interface StudyGuideSection {
   subTopic: string;

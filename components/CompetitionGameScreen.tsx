@@ -254,10 +254,21 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
         setCurrentTurnIndex(prev => prev + 1); // Triggers useEffect for Intro
     };
 
+    const [showResults, setShowResults] = useState(false);
+
     const handleGameOver = () => {
         setGameStatus('FINISHED');
-        const winnerId = playerScore >= opponentScore ? roomState.host.id : roomState.opponent!.id;
-        setTimeout(() => onGameEnd(winnerId, playerScore, opponentScore), 1000);
+        setShowResults(true);
+    };
+
+    const confirmGameEnd = () => {
+        // Correct logic: host wins if their score >= opponent score.
+        // If it's a tie, host wins by default logic or you can handle draws.
+        // For simplicity here: Host wins ties.
+        const hostIsWinner = playerScore >= opponentScore;
+        const winnerId = hostIsWinner ? roomState.host.id : (roomState.opponent?.id || 'opponent');
+
+        onGameEnd(winnerId, playerScore, opponentScore);
     };
 
     // Chat
@@ -321,7 +332,67 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
         );
     };
 
-    if (gameStatus === 'FINISHED') return null; // Handled by onGameEnd / Parent
+    if (showResults) {
+        const iWon = playerScore >= opponentScore;
+        const winnerName = iWon ? "You" : (roomState.opponent?.name || "Opponent");
+        const winnerAvatar = iWon ? (roomState.host.avatar || '🧙‍♂️') : (roomState.opponent?.avatar || '👾');
+        const hostSolved = Math.floor(playerScore / 10);
+        const opponentSolved = Math.floor(opponentScore / 10);
+
+        return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-fadeIn p-4">
+                <div className="bg-white rounded-[2rem] p-8 max-w-lg w-full shadow-2xl text-center relative overflow-hidden border-4 border-indigo-500">
+
+                    {/* Confetti / BG Effects */}
+                    <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] animate-slideBg"></div>
+                    {iWon && <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-yellow-300/40 to-transparent pointer-events-none" />}
+
+                    {/* Result Header */}
+                    <div className="relative z-10 mb-8">
+                        <h2 className={`text-6xl font-black uppercase tracking-tighter mb-2 ${iWon ? 'text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 to-orange-500' : 'text-slate-400'}`}>
+                            {iWon ? 'VICTORY!' : 'DEFEAT'}
+                        </h2>
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">
+                            {iWon ? 'You dominated the arena!' : 'Better luck next time!'}
+                        </p>
+                    </div>
+
+                    {/* Winner Avatar */}
+                    <div className="relative z-10 mb-8 flex justify-center">
+                        <div className={`w-32 h-32 rounded-full flex items-center justify-center text-7xl bg-gradient-to-br ${iWon ? 'from-indigo-500 to-purple-600 shadow-purple-500/50' : 'from-slate-200 to-slate-300'} shadow-2xl border-4 border-white ring-4 ${iWon ? 'ring-yellow-400' : 'ring-slate-300'}`}>
+                            {winnerAvatar}
+                        </div>
+                        {iWon && <div className="absolute -top-6 text-6xl animate-bounce">👑</div>}
+                    </div>
+
+                    {/* Score Comparison */}
+                    <div className="grid grid-cols-2 gap-4 mb-8 bg-slate-50 rounded-2xl p-4 border border-slate-200 relative z-10">
+                        <div className="text-center border-r border-slate-200">
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1">YOU</p>
+                            <div className="text-4xl font-black text-indigo-600">{playerScore}</div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1">{hostSolved} Solved</div>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1">{roomState.opponent?.name || 'OPPONENT'}</p>
+                            <div className="text-4xl font-black text-slate-600">{opponentScore}</div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1">{opponentSolved} Solved</div>
+                        </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                        onClick={confirmGameEnd}
+                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-lg uppercase tracking-wide transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-indigo-500/30 relative z-10"
+                    >
+                        Rankings & Exit
+                    </button>
+
+                </div>
+            </div>
+        );
+    }
+
+    if (gameStatus === 'FINISHED') return null; // Fallback, though should be caught by showResults above
 
     return (
         <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 overflow-hidden">
