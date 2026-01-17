@@ -290,6 +290,82 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
   };
 };
 
+
+
+// --- DAILY QUESTS GENERATION ---
+const QUEST_MODEL = "gemini-2.5-flash"; // User requested 2.5 flash
+
+export const generateDailyQuests = async (): Promise<import("../types").Quest[]> => {
+  const client = getAiClient();
+
+  const prompt = `
+  Generate 3 engaging "Daily Quests" for a trivia game.
+  Return a strict JSON array of objects with the following schema:
+  [
+    {
+      "id": "q1",
+      "type": "STREAK" | "TOPIC_ACCURACY" | "TOTAL_CORRECT",
+      "description": "Short catchy description",
+      "target": number (integer),
+      "topic": "string" (optional, ONLY for TOPIC_ACCURACY type),
+      "rewardXp": number (100-500)
+    }
+  ]
+
+  Requirements:
+  1. One quest MUST be 'TOPIC_ACCURACY' with a specific, random, interesting topic (e.g. "Space", "90s Music", "Python").
+  2. One quest MUST be 'STREAK' (e.g. "Get 5 correct in a row").
+  3. One quest MUST be 'TOTAL_CORRECT' (e.g. "Answer 10 questions correctly").
+  4. Ensure targets are achievable in one session (e.g. streak 3-10, total 5-20).
+  `;
+
+  try {
+    const response = await client.models.generateContent({
+      model: QUEST_MODEL,
+      contents: { parts: [{ text: prompt }] },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const text = response.text;
+    console.log("[generateDailyQuests] Raw response:", text);
+
+    if (!text) throw new Error("No response");
+
+    let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    // find outer brackets
+    const firstBracket = cleanJson.indexOf('[');
+    const lastBracket = cleanJson.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1) {
+      cleanJson = cleanJson.substring(firstBracket, lastBracket + 1);
+    }
+
+    const quests = JSON.parse(cleanJson);
+
+    // Client-side validation / hydration
+    return quests.map((q: any, i: number) => ({
+      id: `daily_${Date.now()}_${i}`,
+      type: q.type,
+      description: q.description,
+      target: q.target || 5,
+      progress: 0,
+      topic: q.topic,
+      rewardXp: q.rewardXp || 100,
+      isCompleted: false
+    }));
+
+  } catch (e) {
+    console.error("Failed to generate quests:", e);
+    // Fallback quests
+    return [
+      { id: 'fb_1', type: 'TOTAL_CORRECT', description: 'Answer 5 Questions Correctly', target: 5, progress: 0, rewardXp: 100, isCompleted: false },
+      { id: 'fb_2', type: 'STREAK', description: 'Get a 3 Answer Streak', target: 3, progress: 0, rewardXp: 150, isCompleted: false },
+      { id: 'fb_3', type: 'TOPIC_ACCURACY', description: 'Get 3 Correct in Science', target: 3, topic: 'Science', progress: 0, rewardXp: 200, isCompleted: false }
+    ];
+  }
+};
+
 export const generateGameImage = async (prompt: string, isBackground: boolean = false, facing: 'left' | 'right' | null = null): Promise<string> => {
   const client = getAiClient();
   // CHANGED: Added specific negative constraints for green on the character itself
