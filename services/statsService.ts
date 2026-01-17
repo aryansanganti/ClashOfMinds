@@ -1,6 +1,6 @@
 import { PlayerStats, TopicStats, MissedQuestion } from '../types';
 
-const STATS_KEY = 'battlenotes_player_stats';
+const STATS_KEY = 'Clash of Minds_player_stats';
 
 const defaultStats: PlayerStats = {
     totalGamesPlayed: 0,

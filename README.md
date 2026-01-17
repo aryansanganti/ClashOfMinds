@@ -1,6 +1,6 @@
-# BattleNotes
+# Clash of Minds
 
-Turn your study notes into an epic RPG battle. BattleNotes transforms PDFs, images, or text topics into gamified quizzes where you fight bosses representing the concepts you're learning.
+Turn your study notes into an epic RPG battle. Clash of Minds transforms PDFs, images, or text topics into gamified quizzes where you fight bosses representing the concepts you're learning.
 
 ## How It Works
 
