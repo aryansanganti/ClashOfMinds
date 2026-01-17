@@ -27,6 +27,17 @@ export interface Stats {
   total_turns: number;
   turns_won: number;
   turns_lost: number;
+  mana: number;              // Current mana
+  max_mana: number;          // Maximum mana capacity
+  active_powerups: ActivePowerup[];  // Currently active power-ups
+}
+
+// Power-up system
+export type PowerupType = 'SHIELD';
+
+export interface ActivePowerup {
+  type: PowerupType;
+  expires_turn?: number;  // For time-limited power-ups
 }
 
 // Data that changes every turn coming from AI
