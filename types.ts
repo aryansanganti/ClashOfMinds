@@ -75,7 +75,6 @@ export interface InitGameParams {
   ethnicity: string;
   mode?: 'SOLO' | 'COOP';
   players?: string[]; // Names of friends for Co-op
-  knowledgeShards?: MissedQuestion[]; // Ghosts of battles past
 }
 
 export interface DebugTurn {
@@ -188,6 +187,10 @@ export interface CompetitionRoomState {
   timeLimitSeconds: number;
   status: 'WAITING' | 'STARTING' | 'PLAYING' | 'FINISHED';
   winnerId?: string;
+  // Raid Extension
+  gameMode?: 'BATTLE' | 'RAID';
+  bossHp?: number;
+  bossMaxHp?: number;
 }
 
 export interface CompetitionTurnResult {

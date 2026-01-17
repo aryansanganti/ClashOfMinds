@@ -6,38 +6,28 @@ import cors from 'cors';
 const app = express();
 app.use(cors());
 
-// Health check endpoint for hosting services
-app.get('/', (req, res) => {
-    res.json({ status: 'ok', message: 'Clash of Minds Multiplayer Server' });
-});
-
-app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', rooms: rooms.size });
-});
-
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: "*", // Allow all origins (configure specific origins in production)
+        origin: "*",
         methods: ["GET", "POST"]
     },
     maxHttpBufferSize: 1e7 // 10 MB for large images
 });
 
-// Use PORT from environment (for cloud hosting) or default to 3001
-const PORT = process.env.PORT || 3001;
+const PORT = 3001;
 const rooms = new Map();
 
 io.on('connection', (socket) => {
-    console.log(`[${new Date().toISOString()}] User Connected: ${socket.id}`);
+    console.log(`User Connected: ${socket.id}`);
 
-    // Join Room
+    // Join Room - accepts { roomId, player, gameMode } from client
     socket.on('join_room', (data) => {
-        const { roomId, player } = data;
+        // data.gameMode should be 'BATTLE' or 'RAID' (only used by creator)
+        const { roomId, player, gameMode } = data;
 
         if (!player || !roomId) {
             console.error('Invalid join_room data:', data);
-            socket.emit('error', { message: 'Invalid room data' });
             return;
         }
 
@@ -48,15 +38,17 @@ io.on('connection', (socket) => {
             room = {
                 id: roomId,
                 host: player,
-                opponent: null,
-                createdAt: Date.now()
+                opponent: null, // In Raid, this is Player 2
+                gameMode: gameMode || 'BATTLE',
+                bossHp: 100, // Default Boss HP for Raid
+                bossMaxHp: 100
             };
             rooms.set(roomId, room);
-            console.log(`Room ${roomId} created by ${player.name}`);
+            console.log(`Room ${roomId} created by ${player.name} in ${room.gameMode} mode`);
         } else {
             if (room.host && room.host.id !== player.id && !room.opponent) {
                 room.opponent = player;
-                console.log(`${player.name} joined room ${roomId} as opponent`);
+                console.log(`${player.name} joined room ${roomId}`);
             }
         }
 
@@ -66,12 +58,27 @@ io.on('connection', (socket) => {
     // Start Game Request
     socket.on('start_game_request', (data) => {
         console.log(`Game starting in room ${data.roomId}`);
+        // If Raid, reset Boss HP? Or set it based on difficulty?
+        // We'll let client handle visuals, server just tracks value if needed.
         io.to(data.roomId).emit('game_start', { config: data.gameConfig });
     });
 
-    // Score Update
+    // Score Update (Battle Mode)
     socket.on('score_update', (data) => {
         io.to(data.roomId).emit('score_update', data);
+    });
+
+    // Boss Damage (Raid Mode)
+    socket.on('boss_damage', (data) => {
+        const room = rooms.get(data.roomId);
+        if (room && room.gameMode === 'RAID') {
+            room.bossHp = Math.max(0, room.bossHp - data.damage);
+            io.to(data.roomId).emit('boss_update', { bossHp: room.bossHp, damage: data.damage, attackerId: data.playerId });
+
+            if (room.bossHp <= 0) {
+                io.to(data.roomId).emit('raid_victory', { finalHitBy: data.playerId });
+            }
+        }
     });
 
     // Chat Message
@@ -80,23 +87,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log(`[${new Date().toISOString()}] User Disconnected:`, socket.id);
+        console.log('User Disconnected:', socket.id);
     });
 });
 
-// Cleanup old rooms every 30 minutes
-setInterval(() => {
-    const now = Date.now();
-    const OLD_ROOM_THRESHOLD = 60 * 60 * 1000; // 1 hour
-
-    for (const [roomId, room] of rooms.entries()) {
-        if (now - room.createdAt > OLD_ROOM_THRESHOLD) {
-            rooms.delete(roomId);
-            console.log(`Cleaned up old room: ${roomId}`);
-        }
-    }
-}, 30 * 60 * 1000);
-
 httpServer.listen(PORT, () => {
-    console.log(`🚀 Clash of Minds Multiplayer Server running on port ${PORT}`);
+    console.log(`Socket.io server running on port ${PORT}`);
 });

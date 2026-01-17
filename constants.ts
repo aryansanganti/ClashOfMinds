@@ -34,7 +34,7 @@ Act as a Wacky Game Engine for a mobile learning game called Clash of Minds.
   "theme": {
     "setting": "Colorful cartoon background description",
     "boss_name": "Funny name for the concept",
-    "boss_visual_prompt": "Vector art, 3d render, cute but evil [Concept Character], single character, isolated, solid bright green background (#00FF00), character has NO green colors, MUST face LEFT (looking toward left side of image), side profile view, full body, no text",
+    "boss_visual_prompt": "Epic 3D render of a menacing Raid Boss [Concept Character], high detail, 4k, dramatic lighting, imposing stance, solid bright green background (#00FF00), character has NO green colors, MUST face LEFT (looking toward left side of image), side profile view, full body, no text",
     "player_visual_prompt": "Vector art, 3d render, cool [Student Hero] humanoid, holding [Item related to topic], single character, isolated, solid green background, character has NO green colors, facing right side profile, full body, no text",
     "background_visual_prompt": "3d render cartoon environment, [Famous location or place associated with the topic - e.g. philosopher's study room, scientist's laboratory, historical battlefield], wide panoramic view, CRITICAL: bottom 60% must be flat empty ground/floor where characters can stand, top 40% is scenic background, extremely low horizon line, vibrant colors, high quality, no text, no characters, side-scrolling game style"
   },
@@ -56,7 +56,7 @@ Act as a Wacky Game Engine for a mobile learning game called Clash of Minds.
       "answer_explanation": "A brief 1-sentence explanation of why this is the correct answer.",
       "difficulty": "EASY" | "MEDIUM" | "HARD",
       "new_boss_name": "Unique funny name for this turn's boss (e.g. 'Captain Calculus', 'Professor Puzzler')",
-      "new_boss_visual_prompt": "Description for the boss in this specific turn (e.g. 'Holding a giant pencil'), single character, solid bright green background (#00FF00), NO green on boss, MUST face LEFT (looking toward left side of image), side profile view"
+      "new_boss_visual_prompt": "Epic 3D render of the boss [Action Description] (e.g. 'Charging up a laser'), high detail, 4k, dramatic lighting, single character, solid bright green background (#00FF00), NO green on boss, MUST face LEFT (looking toward left side of image), side profile view"
     },
     // ... repeat for ALL turns up to total_turns
   ]
@@ -85,7 +85,7 @@ DO NOT return a list. Return a SINGLE object.
   "correct_answer": "The correct string from options", // MANDATORY for validation
   "answer_explanation": "Brief 1-sentence explanation of why this is correct.",
   "difficulty": "EASY" | "MEDIUM" | "HARD",
-  "new_boss_visual_prompt": "Visual description of the boss for this turn, single character, solid bright green background (#00FF00), NO green on boss, MUST face LEFT (looking toward left side of image), side profile view"
+  "new_boss_visual_prompt": "Visual description of the boss for this turn, Epic 3D render style, high detail, 4k, single character, solid bright green background (#00FF00), NO green on boss, MUST face LEFT (looking toward left side of image), side profile view"
 }
 
 **RULES:**

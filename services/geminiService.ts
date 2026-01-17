@@ -101,18 +101,6 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
     promptText = `Create a wacky cartoon battle about: ${params.topic}. The player character is a ${playerDesc}. The game will last ${turns} turns. Generate ALL ${turns} turns upfront in the all_turns array. ${difficultyPrompt}`;
   }
 
-  // --- KNOWLEDGE SHARDS / GHOSTS OF BATTLES PAST ---
-  if (params.knowledgeShards && params.knowledgeShards.length > 0) {
-    const shardText = params.knowledgeShards.map(s => `"${s.question}" (Correct: ${s.correctAnswer})`).join('\n');
-    promptText += `\n\nCRITICAL INSTRUCTION - GHOSTS OF BATTLES PAST:
-    The player has previously struggled with these specific concepts (Knowledge Shards):
-    ${shardText}
-    
-    You MUST weave at least ${Math.min(3, params.knowledgeShards.length)} of these concepts back into the new battle to help them practice. 
-    Rephrase the questions slightly or present them in a new context within the story. 
-    Make the "Boss" taunt the player about these past failures if possible.`;
-  }
-
 
   parts.push({ text: promptText });
 
@@ -134,12 +122,48 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
   // 1. Remove markdown code blocks
   let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-  // 2. Find the absolute first '{' and last '}' to handle any conversational prefix/suffix
+  // 2. Robustly find the matching closing brace to ignore trailing text
   const startIdx = cleanJson.indexOf('{');
-  const endIdx = cleanJson.lastIndexOf('}');
+  if (startIdx !== -1) {
+    let openBraces = 0;
+    let endIdx = -1;
+    let inString = false;
+    let isEscaped = false;
 
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    cleanJson = cleanJson.substring(startIdx, endIdx + 1);
+    for (let i = startIdx; i < cleanJson.length; i++) {
+      const char = cleanJson[i];
+
+      if (isEscaped) {
+        isEscaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        isEscaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === '{') {
+          openBraces++;
+        } else if (char === '}') {
+          openBraces--;
+          if (openBraces === 0) {
+            endIdx = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (endIdx !== -1) {
+      cleanJson = cleanJson.substring(startIdx, endIdx + 1);
+    }
   }
 
   console.log("[initializeGame] Cleaned JSON:", cleanJson.substring(0, 500));
@@ -162,9 +186,9 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
   const defaultTheme = {
     setting: "A wacky cartoon world",
     boss_name: "The Challenge Boss",
-    boss_visual_prompt: "Cute cartoon monster, 3d render, solid green background, NO green on character",
-    player_visual_prompt: `${playerDesc} hero, 3d render, solid green background, NO green on character`,
-    background_visual_prompt: "Cartoon landscape background"
+    boss_visual_prompt: "Epic 3D render of a menacing Raid Boss monster, high detail, 4k, dramatic lighting, imposing stance, solid bright green background, NO green on character, MUST face LEFT",
+    player_visual_prompt: `${playerDesc} hero, 3d render, solid green background, NO green on character, facing RIGHT`,
+    background_visual_prompt: "Epic fantasy landscape background, high detail, 4k"
   };
   // Ensure theme object exists and has all keys filled
   state.theme = { ...defaultTheme, ...(state.theme || {}) };
@@ -551,4 +575,102 @@ ${idx + 1}. Question: "${q.question}"
       motivationalMessage: "Keep practicing! Every mistake is a learning opportunity."
     };
   }
+};
+
+export const generateMnemonic = async (
+  question: string,
+  correctAnswer: string,
+  topic: string,
+  playerAnswer?: string
+): Promise<string> => {
+  const client = getAiClient();
+
+  // Create a catchy prompt for a rhyme or acronym
+  const prompt = `
+You are a creative memory expert known for making catchy, educational "Brain Hacks" to help students remember facts.
+
+**Context**:
+- Topic: ${topic}
+- Question: "${question}"
+- Correct Answer: "${correctAnswer}"
+${playerAnswer ? `- Student's Wrong Answer: "${playerAnswer}"` : ''}
+
+**Goal**: Create a short, memorable mnemonic (rhyme, acronym, or word association) to help the student remember the CORRECT answer for this question.
+
+**Guidelines**:
+1. Keep it extremely short (under 20 words).
+2. Make it catchy, funny, or rhyming.
+3. Don't simply explain the answer; give a specific trick to REMEMBER it.
+4. If an acronym fits, use it. If a rhyme fits, use that.
+5. Return ONLY the mnemonic text itself. No "Here is the mnemonic:" prefix.
+
+**Example output**:
+- "To remember the order of planets: My Very Educated Mother Just Served Us Noodles!"
+- "Stalactites hold on tight to the ceiling (has a C for ceiling)!"
+`;
+
+  try {
+    const response = await client.models.generateContent({
+      model: "gemini-2.0-flash-exp",
+      contents: { parts: [{ text: prompt }] },
+    });
+
+    const mnemonic = response.text || "Remember: " + correctAnswer;
+    return mnemonic.trim();
+
+  } catch (error) {
+    console.error("Failed to generate mnemonic:", error);
+    return `Tip: Focus on "${correctAnswer}" next time!`;
+  }
+};
+
+export const speakLikeBoss = async (text: string): Promise<void> => {
+  // 1. Attempt to use Gemini TTS (Experimental / Future Implementation)
+  // Since the specific 'gemini-2.5-flash-preview-tts' API surface is not yet standard in the client library,
+  // we will fallback to a robust Browser Speech Synthesis implementation tailored to sound like a "Boss".
+
+  /* 
+  // Future Implementation for Gemini TTS:
+  try {
+    const client = getAiClient();
+    const response = await client.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: { parts: [{ text }] },
+    });
+    // Play audio blob...
+  } catch (e) { ... } 
+  */
+
+  // 2. Browser Fallback: "Heavy Boss Voice"
+  return new Promise((resolve, reject) => {
+    if (!window.speechSynthesis) {
+      console.warn("Browser does not support speech synthesis");
+      resolve();
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Find a suitable deep voice
+    const voices = window.speechSynthesis.getVoices();
+    // Prefer "Google US English" or similar if available, or just the first male voice
+    const preferredVoice = voices.find(v => v.name.includes("Google US English") || v.name.includes("Male"));
+    if (preferredVoice) utterance.voice = preferredVoice;
+
+    // "Heavy" Boss Persona Settings
+    utterance.pitch = 0.6; // Deep pitch
+    utterance.rate = 0.9;  // Slightly slow, authoritative
+    utterance.volume = 1.0;
+
+    utterance.onend = () => resolve();
+    utterance.onerror = (e) => {
+      console.error("Speech synthesis error", e);
+      resolve(); // Resolve anyway to not block game flow
+    };
+
+    window.speechSynthesis.speak(utterance);
+  });
 };

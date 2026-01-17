@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { PlayerProfile } from '../types';
 
-// Use environment variable for server URL, fallback to localhost for dev
-const SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3001';
+// Explicit connection to backend server
+const SERVER_URL = 'http://localhost:3001';
 
 export const useMultiplayer = () => {
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -12,24 +12,23 @@ export const useMultiplayer = () => {
     const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
-        console.log('[Multiplayer] Connecting to:', SERVER_URL);
         const s = io(SERVER_URL, {
-            transports: ['websocket', 'polling'],
+            transports: ['websocket', 'polling'], // Try websocket first
         });
         socketRef.current = s;
         setSocket(s);
 
         s.on('connect', () => {
-            console.log('[Multiplayer] Connected:', s.id);
+            console.log('Connected to socket server:', s.id);
             setIsConnected(true);
         });
 
         s.on('connect_error', (err) => {
-            console.error('[Multiplayer] Connection error:', err.message);
+            console.error('Socket connection error:', err.message);
         });
 
         s.on('disconnect', () => {
-            console.log('[Multiplayer] Disconnected');
+            console.log('Disconnected from socket server');
             setIsConnected(false);
         });
 
@@ -42,20 +41,20 @@ export const useMultiplayer = () => {
         };
     }, []);
 
-    const joinRoom = (roomId: string, player: PlayerProfile) => {
-        socketRef.current?.emit('join_room', { roomId, player });
+    const joinRoom = (roomId: string, player: PlayerProfile, gameMode: 'BATTLE' | 'RAID' = 'BATTLE') => {
+        socketRef.current?.emit('join_room', { roomId, player, gameMode });
     };
 
     const updateScore = (roomId: string, playerId: string, score: number) => {
         socketRef.current?.emit('score_update', { roomId, playerId, score });
     };
 
-    const sendChat = (roomId: string, playerId: string, message: string) => {
-        socketRef.current?.emit('chat_message', { roomId, playerId, message });
+    const damageBoss = (roomId: string, playerId: string, damage: number) => {
+        socketRef.current?.emit('boss_damage', { roomId, playerId, damage });
     };
 
-    const requestGameStart = (roomId: string, gameConfig: any) => {
-        socketRef.current?.emit('start_game_request', { roomId, gameConfig });
+    const sendChat = (roomId: string, playerId: string, message: string) => {
+        socketRef.current?.emit('chat_message', { roomId, playerId, message });
     };
 
     return {
@@ -64,7 +63,7 @@ export const useMultiplayer = () => {
         messages,
         joinRoom,
         updateScore,
-        sendChat,
-        requestGameStart
+        damageBoss,
+        sendChat
     };
 };
