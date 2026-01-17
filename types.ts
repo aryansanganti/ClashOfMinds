@@ -160,6 +160,53 @@ export interface FullGameManifest {
   raid?: RaidState; // Optional for Solo, required for Co-op
 }
 
+// --- COMPETITION MODE TYPES ---
+
+export interface PlayerProfile {
+  id: string;
+  name: string;
+  avatar: string; // Emoji
+  imageUrl?: string; // Generated 3D Character URL
+  is_bot: boolean;
+  score: number;
+  progress: number; // 0-100%
+}
+
+export interface BotConfig {
+  name: string;
+  difficulty: Difficulty; // Determines how fast/accurate the bot answering is
+  avatar: string;
+}
+
+export interface CompetitionRoomState {
+  roomId: string;
+  host: PlayerProfile;
+  opponent: PlayerProfile | null;
+  topic: string;
+  difficulty: Difficulty;
+  timeLimitSeconds: number;
+  status: 'WAITING' | 'STARTING' | 'PLAYING' | 'FINISHED';
+  winnerId?: string;
+}
+
+export interface CompetitionTurnResult {
+  playerId: string;
+  points: number;
+  correct: boolean;
+}
+
+// --- DAILY QUEST TYPES ---
+export type QuestType = 'STREAK' | 'TOPIC_ACCURACY' | 'TOTAL_CORRECT';
+
+export interface Quest {
+  id: string;
+  description: string;
+  type: QuestType;
+  target: number;
+  progress: number;
+  topic?: string; // If specific topic required
+  rewardXp: number;
+  isCompleted: boolean;
 // Scholar's Report Types
 export interface StudyGuideSection {
   subTopic: string;
