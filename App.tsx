@@ -1067,8 +1067,9 @@ const GameApp: React.FC = () => {
 
       {view === 'LOBBY' ? (
         <LobbyScreen
-          topic={topic || (file ? file.name : "Context Content")}
-          onStartRaid={(friends) => handleStartGame('COOP', friends)}
+          topic={topic || ""}
+          isLoading={loading}
+          onStartRaid={(friends) => handleStartGame('RAID', friends)}
           onBack={() => setView('MENU')}
         />
       ) : view === 'COMPETITION_SETUP' ? (

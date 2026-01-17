@@ -5,9 +5,10 @@ interface LobbyScreenProps {
     topic: string;
     onStartRaid: (friends: string[]) => void;
     onBack: () => void;
+    isLoading?: boolean;
 }
 
-export const LobbyScreen: React.FC<LobbyScreenProps> = ({ topic, onStartRaid, onBack }) => {
+export const LobbyScreen: React.FC<LobbyScreenProps> = ({ topic, onStartRaid, onBack, isLoading = false }) => {
     const [friends, setFriends] = useState<string[]>([]);
     const [newFriendName, setNewFriendName] = useState('');
 
@@ -23,8 +24,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ topic, onStartRaid, on
 
     const handleStart = () => {
         if (friends.length === 0) {
-            // Auto-add bots if none added? Or just force user to add one?
-            // Let's force at least one friend for a "Raid"
             alert("Invite at least one friend to start a Raid!");
             return;
         }
@@ -106,11 +105,21 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ topic, onStartRaid, on
                 <div className="space-y-3">
                     <button
                         onClick={handleStart}
-                        className="w-full py-4 bg-gradient-to-br from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white border-b-4 border-indigo-800 rounded-2xl font-black text-xl uppercase tracking-widest shadow-lg transition-all active:border-b-0 active:translate-y-1"
+                        disabled={isLoading}
+                        className="w-full py-4 bg-gradient-to-br from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white border-b-4 border-indigo-800 rounded-2xl font-black text-xl uppercase tracking-widest shadow-lg transition-all active:border-b-0 active:translate-y-1 disabled:opacity-70 disabled:grayscale disabled:pointer-events-none"
                     >
                         <div className="flex items-center justify-center gap-2">
-                            <PlayIcon className="w-6 h-6" />
-                            <span>Start Raid</span>
+                            {isLoading ? (
+                                <>
+                                    <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    <span>Starting Raid...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <PlayIcon className="w-6 h-6" />
+                                    <span>Start Raid</span>
+                                </>
+                            )}
                         </div>
                     </button>
 

@@ -66,17 +66,6 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
             // If I am Joiner: hostProfile is THE OPPONENT.
             // We need to construct the state such that 'host' is always the ROOM HOST.
 
-            // HOWEVER, CompetitionGameScreen expects:
-            // 'host' = The player (YOU) ?? 
-            // No, in standard logic 'host' is the room owner.
-            // But visuals need to know "Which one is ME?" 
-            // Let's pass the raw room state and let GameScreen sort it out via IDs.
-
-            // For simplicity:
-            // Host: host=Me, opponent=Them
-            // Joiner: host=Me, opponent=Them (We swap them locally?)
-            // Let's swap them for the Joiner so that "Host" prop in GameComponent usually means "Player 1 (Left/You)"
-
             let localHostProfile, localOpponentProfile;
 
             if (mode === 'HOST') {
@@ -172,9 +161,12 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
         }
     };
 
-    const handleJoinRoom = () => {
+    const [isJoining, setIsJoining] = useState(false);
+
+    const handleJoinRoom = async () => {
         if (!joinCode) return;
         soundManager.playButtonClick();
+        setIsJoining(true); // Start loading
         setRoomId(joinCode);
 
         const myProfile = {
@@ -186,7 +178,12 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
             score: 0,
             progress: 0
         };
+
+        // Short timeout to simulate network or allow socket to emit
         multiplayer.joinRoom(joinCode, myProfile, isRaid ? 'RAID' : 'BATTLE');
+
+        // Keep loader for a few seconds max or until room update
+        setTimeout(() => setIsJoining(false), 5000);
     };
 
     const [isStarting, setIsStarting] = useState(false);
@@ -195,10 +192,6 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
         if (!multiplayer.socket) return;
         soundManager.playButtonClick();
         setIsStarting(true); // Start loading
-
-        // We need to send MY profile and THE OPPONENT'S profile to the game start config
-        // so the other player knows who is who.
-        // Actually the server broadcast sends it to everyone.
 
         const hostProfile = {
             id: multiplayer.socket?.id,
@@ -415,10 +408,17 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                         {!opponent ? (
                             <button
                                 onClick={handleJoinRoom}
-                                disabled={joinCode.length < 3}
-                                className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white border-b-4 border-indigo-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 disabled:opacity-50"
+                                disabled={joinCode.length < 3 || isJoining}
+                                className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white border-b-4 border-indigo-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                             >
-                                Join Room
+                                {isJoining ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        Joining Room...
+                                    </>
+                                ) : (
+                                    'Join Room'
+                                )}
                             </button>
                         ) : (
                             <div className="bg-slate-50 p-6 rounded-2xl text-center border-2 border-slate-100">
