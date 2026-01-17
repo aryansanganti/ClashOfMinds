@@ -304,6 +304,7 @@ const GameApp: React.FC = () => {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showOffline, setShowOffline] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showQuests, setShowQuests] = useState(false);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -1120,139 +1121,6 @@ const GameApp: React.FC = () => {
           onBack={() => setView('MENU')}
           multiplayer={multiplayer}
         />
-      ) : view === 'OFFLINE_MENU' ? (
-        <div className="min-h-screen p-4 flex items-center justify-center">
-          <div className="bg-white rounded-[2rem] p-8 shadow-2xl max-w-2xl w-full border-b-8 border-slate-200 relative">
-            <button onClick={() => setView('MENU')} className="absolute top-6 left-6 p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-all"><ArrowLeftOnRectangleIcon className="w-6 h-6 rotate-180" /></button>
-
-            <div className="text-center mb-8">
-              <div className="inline-block p-4 rounded-3xl bg-slate-800 text-white mb-4 shadow-lg">
-                <WifiIcon className="w-10 h-10" />
-              </div>
-              <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Offline Mode</h2>
-              <p className="text-slate-500 font-bold">Play pre-generated battles without internet</p>
-            </div>
-
-            <div className="space-y-6">
-              {/* Preload New Battle */}
-              <div className="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-100">
-                <h3 className="font-black text-indigo-900 mb-2 flex items-center gap-2">
-                  <CloudArrowDownIcon className="w-5 h-5" />
-                  Download New Battle
-                </h3>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    id="offline-topic"
-                    placeholder="Enter Topic (e.g. Space, Python)..."
-                    className="flex-1 px-4 py-3 rounded-xl border-2 border-indigo-200 font-bold text-indigo-900 focus:border-indigo-500 outline-none"
-                  />
-                  <button
-                    onClick={async () => {
-                      const input = document.getElementById('offline-topic') as HTMLInputElement;
-                      if (!input.value) return;
-                      setIsPreloading(true);
-                      try {
-                        await saveBattleForOffline({
-                          topic: input.value,
-                          numQuestions: 5,
-                          difficulty: 'NORMAL',
-                          gender: 'RANDOM',
-                          age: 'Random',
-                          ethnicity: 'Random',
-                          mode: 'SOLO'
-                        });
-                        setOfflineBattles(getOfflineBattles());
-                        input.value = '';
-                        soundManager.playVictory();
-                      } catch (e) {
-                        alert("Failed to download: " + e);
-                      }
-                      setIsPreloading(false);
-                    }}
-                    disabled={isPreloading}
-                    className="px-6 py-3 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-600 disabled:opacity-50 transition-all"
-                  >
-                    {isPreloading ? 'Downloading...' : 'Save'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Saved Battles List */}
-              <div>
-                <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-3">Saved Battles</h3>
-                {offlineBattles.length === 0 ? (
-                  <p className="text-center text-slate-400 py-8 font-bold italic">No offline battles saved yet.</p>
-                ) : (
-                  <div className="grid gap-3">
-                    {offlineBattles.map(battle => (
-                      <div key={battle.id} className="bg-white border-2 border-slate-200 p-4 rounded-xl flex justify-between items-center hover:border-indigo-400 transition-colors group shadow-sm">
-                        <div>
-                          <p className="font-black text-slate-700 text-lg">{battle.topic}</p>
-                          <p className="text-xs font-bold text-slate-400">
-                            {new Date(battle.timestamp).toLocaleDateString()} • {battle.difficulty}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              soundManager.playBattleMusic();
-                              // Load Manifest directly into Game State
-                              setGameState({
-                                game_status: GameStatus.PLAYING,
-                                topic_title: battle.topic,
-                                theme: battle.manifest.gameState.theme,
-                                stats: {
-                                  current_turn_index: 0,
-                                  total_turns: battle.manifest.allTurns.length,
-                                  player_hp: 100,
-                                  player_max_hp: 100,
-                                  streak: 0,
-                                  turns_won: 0,
-                                  turns_lost: 0,
-                                  mana: 50,
-                                  max_mana: 100,
-                                  active_powerups: []
-                                },
-                                current_turn: battle.manifest.allTurns[0]
-                              });
-                              // Populate preloadedTurns from pack
-                              preloadedTurns.current = battle.manifest.allTurns.map((turn, i) => ({
-                                content: turn,
-                                bossImage: null
-                              }));
-
-                              // Set Images
-                              setPlayerImage(null);
-                              setBackgroundImage(null);
-                              setBossImage(null);
-
-                              setView('GAME');
-                            }}
-                            className="px-4 py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 shadow-md active:translate-y-1 transition-all"
-                          >
-                            Play
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm("Delete this battle?")) {
-                                deleteOfflineBattle(battle.id);
-                                setOfflineBattles(getOfflineBattles());
-                              }
-                            }}
-                            className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                          >
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       ) : view === 'MENU' ? (
 
         <div className="relative flex flex-col justify-end min-h-screen p-4 overflow-hidden pb-4">
@@ -1328,7 +1196,11 @@ const GameApp: React.FC = () => {
                   onClick={() => {
                     soundManager.playButtonClick();
                     setOfflineBattles(getOfflineBattles());
-                    setView('OFFLINE_MENU');
+                    setShowOffline(true);
+                    setShowSettings(false);
+                    setShowStats(false);
+                    setShowGrimoire(false);
+                    setShowQuests(false);
                     setIsSidebarOpen(false);
                   }}
                   className="group relative flex items-center justify-end"
@@ -1377,7 +1249,7 @@ const GameApp: React.FC = () => {
 
               {/* Backdrop to close menu */}
               {
-                showMenu && !showSettings && !showStats && (
+                showMenu && !showSettings && !showStats && !showOffline && (
                   <div
                     className="fixed inset-0 z-0"
                     onClick={() => setShowMenu(false)}
@@ -1386,7 +1258,7 @@ const GameApp: React.FC = () => {
               }
 
               {
-                !showSettings && !showStats && (
+                !showSettings && !showStats && !showOffline && (
                   <div className="mb-6 flex gap-3">
                     <button
                       onClick={() => { soundManager.playButtonClick(); setGameMode('RAID'); setView('RAID_SETUP'); }}
@@ -1460,7 +1332,7 @@ const GameApp: React.FC = () => {
 
               {/* Daily Challenge - Single Question */}
               {
-                !showSettings && !showStats && quests.length > 0 && (
+                !showSettings && !showStats && !showOffline && quests.length > 0 && (
                   <DailyQuestionWidget
                     quest={quests[0]}
                     soundManager={soundManager}
@@ -1658,6 +1530,141 @@ const GameApp: React.FC = () => {
                     onStatsChange={setPlayerStats}
                     onClose={() => setShowStats(false)}
                   />
+                ) : showStats ? (
+                  <StatsPanel
+                    stats={playerStats}
+                    onStatsChange={setPlayerStats}
+                    onClose={() => setShowStats(false)}
+                  />
+                ) : showOffline ? (
+                  <div className="space-y-6 animate-fadeIn mt-6 bg-black/60 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)] ring-1 ring-white/10 relative overflow-hidden">
+                    <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                      <h3 className="text-xl font-black text-white uppercase tracking-wide">Offline Mode</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowOffline(false)}
+                        className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors"
+                      >
+                        <XMarkIcon className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {/* Preload New Battle */}
+                      <div className="bg-indigo-500/10 p-4 rounded-2xl border border-indigo-500/20">
+                        <h3 className="font-black text-indigo-300 mb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
+                          <CloudArrowDownIcon className="w-4 h-4" />
+                          Download New Battle
+                        </h3>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            id="offline-topic"
+                            placeholder="Topic (e.g. Space)..."
+                            className="flex-1 px-4 py-3 rounded-xl bg-black/40 border border-white/10 font-bold text-white placeholder-white/40 focus:border-indigo-500 outline-none transition-all text-sm"
+                          />
+                          <button
+                            onClick={async () => {
+                              const input = document.getElementById('offline-topic') as HTMLInputElement;
+                              if (!input.value) return;
+                              setIsPreloading(true);
+                              try {
+                                await saveBattleForOffline({
+                                  topic: input.value,
+                                  numQuestions: 5,
+                                  difficulty: 'NORMAL',
+                                  gender: 'RANDOM',
+                                  age: 'Random',
+                                  ethnicity: 'Random',
+                                  mode: 'SOLO'
+                                });
+                                setOfflineBattles(getOfflineBattles());
+                                input.value = '';
+                                soundManager.playVictory();
+                              } catch (e) {
+                                alert("Failed to download: " + e);
+                              }
+                              setIsPreloading(false);
+                            }}
+                            disabled={isPreloading}
+                            className="px-4 py-2 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-400 disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(99,102,241,0.4)] text-sm"
+                          >
+                            {isPreloading ? '...' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Saved Battles List */}
+                      <div>
+                        <h3 className="font-black text-white/40 uppercase tracking-widest text-xs mb-3">Saved Battles</h3>
+                        {offlineBattles.length === 0 ? (
+                          <div className="text-center py-6 border-2 border-dashed border-white/10 rounded-xl">
+                            <p className="text-white/30 font-bold italic text-sm">No offline battles saved.</p>
+                          </div>
+                        ) : (
+                          <div className="grid gap-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                            {offlineBattles.map(battle => (
+                              <div key={battle.id} className="bg-white/5 border border-white/10 p-3 rounded-xl flex justify-between items-center hover:bg-white/10 hover:border-indigo-500/50 transition-all group shadow-sm">
+                                <div>
+                                  <p className="font-black text-white text-base">{battle.topic}</p>
+                                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                                    {new Date(battle.timestamp).toLocaleDateString()} • {battle.difficulty}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      soundManager.playBattleMusic();
+                                      setGameState({
+                                        game_status: GameStatus.PLAYING,
+                                        topic_title: battle.topic,
+                                        theme: battle.manifest.gameState.theme,
+                                        stats: {
+                                          current_turn_index: 0,
+                                          total_turns: battle.manifest.allTurns.length,
+                                          player_hp: 100,
+                                          player_max_hp: 100,
+                                          streak: 0,
+                                          turns_won: 0,
+                                          turns_lost: 0,
+                                          mana: 50,
+                                          max_mana: 100,
+                                          active_powerups: []
+                                        },
+                                        current_turn: battle.manifest.allTurns[0]
+                                      });
+                                      preloadedTurns.current = battle.manifest.allTurns.map((turn, i) => ({
+                                        content: turn,
+                                        bossImage: null
+                                      }));
+                                      setPlayerImage(null);
+                                      setBackgroundImage(null);
+                                      setBossImage(null);
+                                      setView('GAME');
+                                    }}
+                                    className="px-3 py-1.5 bg-emerald-500 text-white font-bold rounded-lg hover:bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)] active:translate-y-1 transition-all text-xs uppercase tracking-wide"
+                                  >
+                                    Play
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm("Delete this battle?")) {
+                                        deleteOfflineBattle(battle.id);
+                                        setOfflineBattles(getOfflineBattles());
+                                      }
+                                    }}
+                                    className="p-1.5 text-white/20 hover:text-rose-500 transition-colors"
+                                  >
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <>
                     {/* Main Input Form */}
