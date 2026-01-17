@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GameState, GameStatus, TurnContent, Difficulty, Gender, PlayerStats, LoadingProgress as LoadingProgressType, PreloadedTurn, CompetitionRoomState, MissedQuestion } from './types';
+import { GameState, GameStatus, TurnContent, Difficulty, Gender, PlayerStats, LoadingProgress as LoadingProgressType, PreloadedTurn, CompetitionRoomState, Quest } from './types';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LoginScreen } from './src/components/LoginScreen';
-import { initializeGame, generateGameImage } from './services/geminiService';
+import { initializeGame, generateGameImage, generateDailyQuests } from './services/geminiService';
 import { loadStats, recordGameStart, recordTurnResult, recordGameEnd } from './services/statsService';
 import { saveGameState, loadGameState, clearSavedGame, hasSavedGame, SavedGameData } from './services/saveService';
 import { GameScreen } from './components/GameScreen';
@@ -15,13 +15,18 @@ import { GrimoireModal } from './components/GrimoireModal';
 import { saveBattleForOffline, getOfflineBattles, deleteOfflineBattle } from './services/offlineService';
 import { OfflineBattlePack } from './types';
 import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon, BookOpenIcon, WifiIcon, TrashIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
-import { RaidGameScreen } from './components/RaidGameScreen';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import { Swords } from 'lucide-react';
 import { useSoundManager } from './hooks/useSoundManager';
 import { useMultiplayer } from './hooks/useMultiplayer';
-import { generateDailyQuests } from './services/geminiService';
-import { Quest } from './types';
+import { KnowledgeProvider, useKnowledge } from './src/context/KnowledgeContext'; // Import Knowledge Context
+
+// Missed Question tracking
+interface MissedQuestion {
+  question: string;
+  correctAnswer: string;
+  playerAnswer: string;
+  timestamp: number;
+}
 
 // Error popup for quota/rate limit errors
 interface ApiError {
@@ -30,9 +35,218 @@ interface ApiError {
   message: string;
 }
 
+// Daily Question Widget - Interactive single question with graffiti feedback
+interface DailyQuestionWidgetProps {
+  quest: Quest;
+  soundManager: any;
+  onComplete: () => void;
+}
+
+const DailyQuestionWidget: React.FC<DailyQuestionWidgetProps> = ({ quest, soundManager, onComplete }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+
+  // Pool of interesting questions about tech, web, Python, and current events
+  const questionPool = [
+    {
+      question: "In Python, what keyword is used to create a function?",
+      options: ["def", "function", "func", "create"],
+      correctAnswer: "def",
+      category: "🐍 Python"
+    },
+    {
+      question: "What does HTML stand for?",
+      options: ["HyperText Markup Language", "High Tech Modern Language", "Home Tool Markup Language", "Hyperlink Text Making Language"],
+      correctAnswer: "HyperText Markup Language",
+      category: "🌐 Web Dev"
+    },
+    {
+      question: "Which CSS property is used to change text color?",
+      options: ["color", "text-color", "font-color", "foreground"],
+      correctAnswer: "color",
+      category: "🎨 CSS"
+    },
+    {
+      question: "What is the output of: print(type([]))?",
+      options: ["<class 'list'>", "<class 'array'>", "<class 'tuple'>", "<class 'dict'>"],
+      correctAnswer: "<class 'list'>",
+      category: "🐍 Python"
+    },
+    {
+      question: "Which company developed React.js?",
+      options: ["Facebook (Meta)", "Google", "Microsoft", "Amazon"],
+      correctAnswer: "Facebook (Meta)",
+      category: "⚛️ React"
+    },
+    {
+      question: "What does API stand for?",
+      options: ["Application Programming Interface", "Advanced Program Integration", "Automatic Protocol Interface", "App Process Input"],
+      correctAnswer: "Application Programming Interface",
+      category: "💻 Tech"
+    },
+    {
+      question: "In JavaScript, which method adds an item to the end of an array?",
+      options: ["push()", "append()", "add()", "insert()"],
+      correctAnswer: "push()",
+      category: "📜 JavaScript"
+    },
+    {
+      question: "What is the shortcut for 'Undo' on most computers?",
+      options: ["Ctrl+Z / Cmd+Z", "Ctrl+U / Cmd+U", "Ctrl+Y / Cmd+Y", "Ctrl+X / Cmd+X"],
+      correctAnswer: "Ctrl+Z / Cmd+Z",
+      category: "⌨️ Shortcuts"
+    },
+    {
+      question: "Which Python library is most popular for data analysis?",
+      options: ["Pandas", "Django", "Flask", "Tkinter"],
+      correctAnswer: "Pandas",
+      category: "📊 Data Science"
+    },
+    {
+      question: "What does 'AI' stand for in tech?",
+      options: ["Artificial Intelligence", "Automated Integration", "Advanced Interface", "Application Index"],
+      correctAnswer: "Artificial Intelligence",
+      category: "🤖 AI"
+    },
+    {
+      question: "Which tag is used for the largest heading in HTML?",
+      options: ["<h1>", "<heading>", "<head>", "<h6>"],
+      correctAnswer: "<h1>",
+      category: "🌐 HTML"
+    },
+    {
+      question: "What is Git primarily used for?",
+      options: ["Version Control", "Database Management", "Web Hosting", "Code Compilation"],
+      correctAnswer: "Version Control",
+      category: "📦 Git"
+    }
+  ];
+
+  // Pick question based on day of year for consistency
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  const dailyQuestion = questionPool[dayOfYear % questionPool.length];
+
+  const handleAnswer = (answer: string) => {
+    setSelectedAnswer(answer);
+    const correct = answer === dailyQuestion.correctAnswer;
+    setIsCorrect(correct);
+    setShowResult(true);
+
+    if (correct) {
+      soundManager.playCorrectAnswer();
+      onComplete();
+    } else {
+      soundManager.playWrongAnswer();
+    }
+  };
+
+  const resetWidget = () => {
+    setIsExpanded(false);
+    setSelectedAnswer(null);
+    setShowResult(false);
+  };
+
+  if (showResult) {
+    return (
+      <div className={`mb-6 rounded-2xl p-6 border-4 shadow-2xl animate-fadeIn overflow-hidden relative ${isCorrect
+        ? 'bg-gradient-to-br from-green-400 to-emerald-500 border-green-300'
+        : 'bg-gradient-to-br from-red-400 to-rose-500 border-red-300'
+        }`}>
+        {/* Graffiti-style result */}
+        <div className="text-center relative z-10">
+          {isCorrect ? (
+            <>
+              <div className="text-6xl mb-2 animate-bounce">🎉</div>
+              <h2 className="text-4xl font-black text-white uppercase tracking-tight"
+                style={{ textShadow: '3px 3px 0 rgba(0,0,0,0.3), -1px -1px 0 rgba(255,255,255,0.5)' }}>
+                WELL DONE!
+              </h2>
+              <p className="text-white/90 font-bold mt-2">You nailed it! 🔥</p>
+            </>
+          ) : (
+            <>
+              <div className="text-5xl mb-2">😅</div>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tight"
+                style={{ textShadow: '2px 2px 0 rgba(0,0,0,0.3)' }}>
+                Nice Try!
+              </h2>
+              <div className="mt-3 bg-white/20 backdrop-blur rounded-xl p-3">
+                <p className="text-white/80 text-sm font-bold">Correct Answer:</p>
+                <p className="text-white text-xl font-black">{dailyQuestion.correctAnswer}</p>
+              </div>
+            </>
+          )}
+          <button
+            onClick={resetWidget}
+            className="mt-4 px-6 py-2 bg-white/30 hover:bg-white/50 rounded-full text-white font-bold text-sm uppercase transition-all"
+          >
+            Got it!
+          </button>
+        </div>
+
+        {/* Background decorations */}
+        <div className="absolute top-2 right-2 text-6xl opacity-20 rotate-12">⭐</div>
+        <div className="absolute bottom-2 left-2 text-4xl opacity-20 -rotate-12">✨</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border-2 border-indigo-200 shadow-lg animate-fadeIn overflow-hidden">
+      {/* Header - clickable to expand */}
+      <button
+        onClick={() => { soundManager.playButtonClick(); setIsExpanded(!isExpanded); }}
+        className="w-full p-4 flex items-center justify-between hover:bg-indigo-100/50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-100 rounded-xl">
+            <FireIcon className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-indigo-800 uppercase tracking-wide">Daily Challenge</h3>
+              <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">{dailyQuestion.category}</span>
+            </div>
+            <p className="text-xs text-indigo-500 font-medium">Tap to test your knowledge!</p>
+          </div>
+        </div>
+        <div className={`text-2xl transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+          ⬇️
+        </div>
+      </button>
+
+      {/* Expanded question and options */}
+      {isExpanded && (
+        <div className="p-4 pt-0 animate-fadeIn">
+          <div className="bg-white rounded-xl p-4 border-2 border-indigo-100 mb-3">
+            <p className="text-lg font-bold text-slate-800 text-center">
+              {dailyQuestion.question}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {dailyQuestion.options.map((option, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleAnswer(option)}
+                className="p-3 bg-white hover:bg-indigo-50 border-2 border-indigo-100 hover:border-indigo-300 rounded-xl font-bold text-sm text-slate-700 transition-all active:scale-95"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const GameApp: React.FC = () => {
   // Hooks must run unconditionally
   const { logout, currentUser } = useAuth();
+  const { shards, addShard } = useKnowledge(); // Use Knowledge Context
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [useGhosts, setUseGhosts] = useState(false); // Ghosts of Battles Past Toggle
   const [showGrimoire, setShowGrimoire] = useState(false);
@@ -148,10 +362,13 @@ const GameApp: React.FC = () => {
   };
   // Check for saved game on mount
   useEffect(() => {
+    console.log('[Resume Check] Effect triggered:', { currentUser: !!currentUser, view, gameState: !!gameState });
     if (currentUser && view === 'MENU' && !gameState) {
       const hasSave = hasSavedGame(currentUser.uid);
+      console.log('[Resume Check] Has saved game:', hasSave);
       if (hasSave) {
         const saved = loadGameState(currentUser.uid);
+        console.log('[Resume Check] Loaded save data:', saved);
         if (saved) {
           setSavedGameData(saved);
           setShowResumeModal(true);
@@ -251,20 +468,7 @@ const GameApp: React.FC = () => {
       finalTopic = `Context: ${pastedContent}\n\nAdditional Instruction: ${topic}`;
     }
 
-    const initParams = {
-      topic: finalTopic || undefined,
-      fileBase64,
-      mimeType,
-      difficulty,
-      numQuestions,
-      gender,
-      age: randomAge ? 'Random' : String(age),
-      ethnicity,
-      mode,
-      players: friends
-    };
-
-    // Step 1: Generate master JSON with all turns
+    // Step 1: Initialize Game Logic with AI
     setLoadingProgress({
       step: 'Generating questions...',
       current: 0,
@@ -283,7 +487,19 @@ const GameApp: React.FC = () => {
           total: totalSteps,
           percentage: 5  // Start at 5%
         });
-        manifest = await initializeGame(initParams);
+        manifest = await initializeGame({
+          topic: finalTopic || undefined,
+          fileBase64,
+          mimeType,
+          difficulty,
+          numQuestions,
+          gender,
+          age: randomAge ? 'Random' : String(age),
+          ethnicity,
+          mode,
+          players: friends,
+          knowledgeShards: useGhosts ? shards : [] // Pass shards if enabled
+        });
         updateProgress('Questions generated!');
         break;
       } catch (err: any) {
@@ -465,12 +681,16 @@ const GameApp: React.FC = () => {
     let newStatus = GameStatus.PLAYING;
 
     const nextIndex = gameState.stats.current_turn_index + 1;
+    const currentTurn = gameState.current_turn;
 
     if (isCorrect) {
       newBossHp = 0;
       if (nextIndex >= gameState.stats.total_turns) {
         newStatus = GameStatus.WON;
       }
+      // Update Quests - TOTAL_CORRECT & TOPIC
+      updateQuestProgress('TOTAL_CORRECT', 1);
+      updateQuestProgress('TOPIC_ACCURACY', 1, currentTopicName.current);
     } else {
       // Check for active Shield power-up
       const hasShield = gameState.stats.active_powerups.some(p => p.type === 'SHIELD');
@@ -502,16 +722,20 @@ const GameApp: React.FC = () => {
         newStatus = GameStatus.WON;
       }
       newBossHp = 100;
+
+      // Record missed question as a knowledge shard
+      if (currentUser && currentTurn.question && answer) {
+        addShard({
+          question: currentTurn.question,
+          correctAnswer: currentTurn.correct_answer || "Unknown",
+          playerAnswer: answer,
+          timestamp: Date.now()
+        });
+      }
     }
 
     // Track turn result
     const newStreak = isCorrect ? gameState.stats.streak + 1 : 0;
-
-    // Update Quests - TOTAL_CORRECT & TOPIC
-    if (isCorrect) {
-      updateQuestProgress('TOTAL_CORRECT', 1);
-      updateQuestProgress('TOPIC_ACCURACY', 1, currentTopicName.current);
-    }
 
     // Update Quests - STREAK
     // We handle streak specially because we want to update if current streak > quest progress
@@ -791,9 +1015,9 @@ const GameApp: React.FC = () => {
   };
 
   const handleOpenLobby = () => {
-    // Raid setup handles topic selection, so we don't strictly need it here
+    if (!topic && !file && !pastedContent) return;
     soundManager.playButtonClick();
-    setView('RAID_SETUP');
+    setView('LOBBY');
   };
 
   const handleDismissApiError = () => {
@@ -832,32 +1056,24 @@ const GameApp: React.FC = () => {
         </div>
       )}
 
-      {/* Global Loading Overlay */}
-      {loading && loadingProgress && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-6 bg-white/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md bg-white p-6 rounded-3xl shadow-2xl border-4 border-slate-100">
-            <h3 className="text-center text-xl font-black text-slate-800 mb-2 uppercase tracking-wide">Generating Game</h3>
-            <LoadingProgress progress={loadingProgress} />
-          </div>
-        </div>
-      )}
-
       {view === 'LOBBY' ? (
         <LobbyScreen
           topic={topic || (file ? file.name : "Context Content")}
           onStartRaid={(friends) => handleStartGame('COOP', friends)}
           onBack={() => setView('MENU')}
         />
-      ) : view === 'RAID_SETUP' ? (
+      ) : view === 'COMPETITION_SETUP' ? (
         <CompetitionSetup
           onGameStart={handleCompetitionStart}
           onBack={() => setView('MENU')}
           multiplayer={multiplayer}
-          isRaid={true}
         />
-      ) : view === 'COMPETITION_SETUP' ? (
-        <CompetitionSetup
-          onGameStart={handleCompetitionStart}
+      ) : view === 'COMPETITION_GAME' && competitionRoom && gameState ? (
+        <CompetitionGameScreen
+          roomState={competitionRoom}
+          gameState={gameState}
+          allTurns={competitionTurns.current}
+          onGameEnd={handleCompetitionEnd}
           onBack={() => setView('MENU')}
           multiplayer={multiplayer}
         />
@@ -999,41 +1215,22 @@ const GameApp: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : view === 'COMPETITION_GAME' && competitionRoom && gameState ? (
-        competitionRoom.gameMode === 'RAID' ? (
-          <RaidGameScreen
-            roomState={competitionRoom}
-            gameState={gameState}
-            allTurns={competitionTurns.current}
-            onGameEnd={handleCompetitionEnd}
-            onBack={() => setView('MENU')}
-            multiplayer={multiplayer}
-          />
-        ) : (
-          <CompetitionGameScreen
-            roomState={competitionRoom}
-            gameState={gameState}
-            allTurns={competitionTurns.current}
-            onGameEnd={handleCompetitionEnd}
-            onBack={() => setView('MENU')}
-            multiplayer={multiplayer}
-          />
-        )
       ) : view === 'MENU' ? (
-        <div className="relative flex items-center justify-center min-h-screen p-4 overflow-hidden">
-          {/* Background Image */}
-          <div className="absolute inset-0 z-0">
-            <img
-              src="/background.png"
-              alt="Background"
-              className="w-full h-full object-cover opacity-100"
-            />
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <div className="w-full max-w-lg">
 
-          </div>
-
-          <div className="relative z-10 w-full max-w-lg">
-
-
+            {/* Logo Area */}
+            <div className="text-center mb-6 md:mb-10">
+              <div className="inline-block p-4 rounded-3xl bg-sky-400 text-white mb-4 rotate-3 shadow-lg transition-transform hover:rotate-6">
+                <Swords className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2.5} />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-800 mb-2">
+                Clash of Minds
+              </h1>
+              <p className="text-slate-500 font-bold text-lg">
+                Turn boring notes into a game
+              </p>
+            </div>
 
             {/* Menu Buttons Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -1138,64 +1335,71 @@ const GameApp: React.FC = () => {
               )}
 
               {!showSettings && !showStats && (
-                <>
-                  <div className="mb-6 bg-slate-100 p-1.5 rounded-2xl flex gap-1">
-                    {/* Mode Tabs */}
-                    <button
-                      onClick={() => { soundManager.playButtonClick(); setGameMode('SOLO'); }}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${gameMode === 'SOLO' ? 'bg-green-500 text-white shadow-md transform scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
-                    >
-                      <UserIcon className="w-4 h-4" /> Solo
-                    </button>
-                    <button
-                      onClick={() => { soundManager.playButtonClick(); setGameMode('RAID'); }}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${gameMode === 'RAID' ? 'bg-purple-500 text-white shadow-md transform scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
-                    >
-                      <UserGroupIcon className="w-4 h-4" /> Raid
-                    </button>
-                    <button
-                      onClick={() => { soundManager.playButtonClick(); setGameMode('PVP'); }}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${gameMode === 'PVP' ? 'bg-red-500 text-white shadow-md transform scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
-                    >
-                      <Swords className="w-4 h-4" /> PvP
-                    </button>
-                  </div>
-                  {/* Resume Game Modal */}
-                  {showResumeModal && savedGameData && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-                      <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-fadeIn">
-                        <h2 className="text-2xl font-black text-slate-800 mb-4">Continue Your Battle?</h2>
-                        <p className="text-slate-600 mb-2">
-                          You have a saved game from{' '}
-                          <span className="font-bold">
-                            {new Date(savedGameData.timestamp).toLocaleString()}
-                          </span>
-                        </p>
-                        <p className="text-slate-500 text-sm mb-6">
-                          Topic: <span className="font-bold">{savedGameData.gameState.topic_title || 'Unknown'}</span>
-                          {' • '}
-                          Turn {savedGameData.gameState.stats.current_turn_index + 1} of {savedGameData.gameState.stats.total_turns}
-                          {' • '}
-                          HP: {savedGameData.gameState.stats.player_hp}/{savedGameData.gameState.stats.player_max_hp}
-                        </p>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={handleResumeGame}
-                            className="flex-1 bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-4 border-green-700 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
-                          >
-                            Resume
-                          </button>
-                          <button
-                            onClick={handleStartNewGame}
-                            className="flex-1 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
-                          >
-                            New Game
-                          </button>
-                        </div>
-                      </div>
+                <div className="mb-6 flex gap-3">
+                  <button
+                    onClick={() => { soundManager.playButtonClick(); handleOpenLobby(); }}
+                    className="flex-1 py-3 bg-purple-500 hover:bg-purple-400 text-white border-b-4 border-purple-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
+                  >
+                    <UserGroupIcon className="w-5 h-5" /> Raid
+                  </button>
+                  <button
+                    onClick={() => { soundManager.playButtonClick(); setView('COMPETITION_SETUP'); }}
+                    className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white border-b-4 border-red-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
+                  >
+                    <Swords className="w-5 h-5" /> 1v1 Battle
+                  </button>
+                </div>
+              )}
+              {/* Resume Game Modal */}
+              {showResumeModal && savedGameData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+                  <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl animate-fadeIn">
+                    <h2 className="text-2xl font-black text-slate-800 mb-4">Continue Your Battle?</h2>
+                    <p className="text-slate-600 mb-2">
+                      You have a saved game from{' '}
+                      <span className="font-bold">
+                        {new Date(savedGameData.timestamp).toLocaleString()}
+                      </span>
+                    </p>
+                    <p className="text-slate-500 text-sm mb-6">
+                      Topic: <span className="font-bold">{savedGameData.gameState.topic_title || 'Unknown'}</span>
+                      {' • '}
+                      Turn {savedGameData.gameState.stats.current_turn_index + 1} of {savedGameData.gameState.stats.total_turns}
+                      {' • '}
+                      HP: {savedGameData.gameState.stats.player_hp}/{savedGameData.gameState.stats.player_max_hp}
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleResumeGame}
+                        className="flex-1 bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-4 border-green-700 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
+                      >
+                        Resume
+                      </button>
+                      <button
+                        onClick={handleStartNewGame}
+                        className="flex-1 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 border-b-4 border-slate-400 active:border-b-0 active:translate-y-1 rounded-xl py-3 font-bold uppercase tracking-wide transition-all"
+                      >
+                        New Game
+                      </button>
                     </div>
-                  )}
-                </>
+                  </div>
+                </div>
+              )}
+
+              {/* Grimoire Modal */}
+              {showGrimoire && (
+                <GrimoireModal onClose={() => setShowGrimoire(false)} />
+              )}
+
+              {/* Daily Challenge - Single Question */}
+              {!showSettings && !showStats && quests.length > 0 && (
+                <DailyQuestionWidget
+                  quest={quests[0]}
+                  soundManager={soundManager}
+                  onComplete={() => {
+                    updateQuestProgress('TOTAL_CORRECT', 1);
+                  }}
+                />
               )}
 
               <form onSubmit={(e) => { e.preventDefault(); handleStartGame(); }} className="space-y-6">
@@ -1330,6 +1534,32 @@ const GameApp: React.FC = () => {
                           <option value="Mixed">Mixed</option>
                         </select>
                       </div>
+
+                      {/* Ghosts of Battles Past Toggle */}
+                      <div className="flex items-center justify-between mt-4 p-3 bg-slate-100 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <BookOpenIcon className="w-5 h-5 text-slate-500" />
+                          <label htmlFor="useGhosts" className="text-sm font-bold text-slate-700 cursor-pointer">
+                            Ghosts of Battles Past
+                          </label>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            id="useGhosts"
+                            className="sr-only peer"
+                            checked={useGhosts}
+                            onChange={(e) => {
+                              soundManager.playButtonClick();
+                              setUseGhosts(e.target.checked);
+                            }}
+                          />
+                          <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
+                        </label>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 px-1">
+                        {useGhosts ? `AI will use your ${shards.length} past missed questions to generate new ones.` : 'AI will not use your past missed questions.'}
+                      </p>
                     </div>
 
                     <button
@@ -1435,88 +1665,90 @@ const GameApp: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading || (!topic && !file && !pastedContent)}
-                      className={`relative w-full text-white border-b-8 rounded-2xl py-4 font-black text-xl uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg overflow-hidden active:border-b-0 active:translate-y-2
-                          ${gameMode === 'SOLO' ? 'bg-green-500 hover:bg-green-400 active:bg-green-600 border-green-700' :
-                          gameMode === 'RAID' ? 'bg-purple-500 hover:bg-purple-400 active:bg-purple-600 border-purple-700' :
-                            'bg-red-500 hover:bg-red-400 active:bg-red-600 border-red-700'
-                        }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (gameMode === 'SOLO') handleStartGame();
-                        else if (gameMode === 'RAID') handleOpenLobby();
-                        else setView('COMPETITION_SETUP');
-                      }}
-                    >
-                      {loading && (
-                        <div className="absolute left-6 top-1/2 -translate-y-1/2">
-                          <SparklesIcon className="w-6 h-6 animate-spin text-white" />
-                        </div>
-                      )}
-
-                      <div className="flex flex-col items-center leading-tight">
-                        <span className={loading ? "animate-pulse" : ""}>
-                          {loading ? "LOADING..." : gameMode === 'SOLO' ? "START ADVENTURE" : gameMode === 'RAID' ? "START RAID" : "SETUP DUEL"}
-                        </span>
+                    <div className="space-y-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={loading || (!topic && !file && !pastedContent)}
+                        className="relative w-full bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-8 border-green-700 active:border-b-0 active:translate-y-2 rounded-2xl py-4 font-black text-xl uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg overflow-hidden"
+                      >
                         {loading && (
-                          <span className="text-[10px] opacity-90 font-bold mt-0.5 tracking-normal normal-case">
-                            this can take a minute, please wait
-                          </span>
+                          <div className="absolute left-6 top-1/2 -translate-y-1/2">
+                            <SparklesIcon className="w-6 h-6 animate-spin text-white" />
+                          </div>
                         )}
-                      </div>
-                    </button>
-                  </div>
 
+                        <div className="flex flex-col items-center leading-tight">
+                          <span className={loading ? "animate-pulse" : ""}>{loading ? "LOADING..." : "START BATTLE"}</span>
+                          {loading && (
+                            <span className="text-[10px] opacity-90 font-bold mt-0.5 tracking-normal normal-case">
+                              this can take a minute, please wait
+                            </span>
+                          )}
+                        </div>
+                      </button>
 
+                      <button
+                        type="button"
+                        onClick={handleOpenLobby}
+                        disabled={loading || (!topic && !file && !pastedContent)}
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-purple-600 border-b-4 border-slate-300 hover:border-purple-300 active:border-b-0 active:translate-y-2 rounded-2xl py-3 font-bold text-sm uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <UserGroupIcon className="w-5 h-5" />
+                        <span>Start Co-op Raid</span>
+                      </button>
+                    </div>
 
-                {/* Manual Resume Button (Debug/Fallback) */}
-                {!loading && currentUser && hasSavedGame(currentUser.uid) && (
-                  <button
-                    onClick={() => {
-                      const saved = loadGameState(currentUser.uid);
-                      if (saved) {
-                        setSavedGameData(saved);
-                        setShowResumeModal(true);
-                      }
-                    }}
-                    className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 rounded-xl py-2 font-bold text-sm uppercase tracking-wide transition-all"
-                  >
-                    📂 Resume Saved Game
-                  </button>
+                    {/* Loading Progress Bar */}
+                    {loading && loadingProgress && (
+                      <LoadingProgress progress={loadingProgress} />
+                    )}
+
+                    {/* Manual Resume Button (Debug/Fallback) */}
+                    {!loading && currentUser && hasSavedGame(currentUser.uid) && (
+                      <button
+                        onClick={() => {
+                          const saved = loadGameState(currentUser.uid);
+                          if (saved) {
+                            setSavedGameData(saved);
+                            setShowResumeModal(true);
+                          }
+                        }}
+                        className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 rounded-xl py-2 font-bold text-sm uppercase tracking-wide transition-all"
+                      >
+                        📂 Resume Saved Game
+                      </button>
+                    )}
+
+                  </>
                 )}
 
-              </>
-                )}
+              </form>
+            </div>
 
-            </form>
+            <p className="text-center text-xs font-bold text-slate-300 mt-8 uppercase tracking-widest">
+              Powered by Google Gemini
+            </p>
+
           </div>
-
-          <p className="text-center text-xs font-bold text-slate-300 mt-8 uppercase tracking-widest">
-            Powered by Google Gemini
-          </p>
-
         </div>
-        </div>
-  ) : gameState ? (
-    <GameScreen
-      gameState={gameState}
-      bossImage={bossImage}
-      playerImage={playerImage}
-      backgroundImage={backgroundImage}
-      onAction={handleAction}
-      onTransitionComplete={handleTransitionComplete}
-      onGiveUp={handleReset}
-      onSaveAndQuit={handleSaveAndQuit}
-      onUsePowerup={handleUsePowerup}
-      soundManager={soundManager}
-      missedQuestions={[...currentSessionMissedQuestions.current]}
-      topicName={gameState.topic_title || 'General Knowledge'}
-      contextSummary={gameState.context_summary}
-    />
-  ) : null
-}
+      ) : gameState ? (
+        <GameScreen
+          gameState={gameState}
+          bossImage={bossImage}
+          playerImage={playerImage}
+          backgroundImage={backgroundImage}
+          onAction={handleAction}
+          onTransitionComplete={handleTransitionComplete}
+          onGiveUp={handleReset}
+          onSaveAndQuit={handleSaveAndQuit}
+          onUsePowerup={handleUsePowerup}
+          soundManager={soundManager}
+          missedQuestions={[...currentSessionMissedQuestions.current]}
+          topicName={gameState.topic_title || 'General Knowledge'}
+          contextSummary={gameState.context_summary}
+        />
+      ) : null
+      }
     </div >
   );
 };
@@ -1542,7 +1774,9 @@ const AuthWrapper: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AuthWrapper />
+      <KnowledgeProvider>
+        <AuthWrapper />
+      </KnowledgeProvider>
     </AuthProvider>
   );
 };
