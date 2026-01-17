@@ -459,3 +459,50 @@ ${idx + 1}. Question: "${q.question}"
     };
   }
 };
+
+export const generateMnemonic = async (
+  question: string,
+  correctAnswer: string,
+  topic: string,
+  playerAnswer?: string
+): Promise<string> => {
+  const client = getAiClient();
+
+  // Create a catchy prompt for a rhyme or acronym
+  const prompt = `
+You are a creative memory expert known for making catchy, educational "Brain Hacks" to help students remember facts.
+
+**Context**:
+- Topic: ${topic}
+- Question: "${question}"
+- Correct Answer: "${correctAnswer}"
+${playerAnswer ? `- Student's Wrong Answer: "${playerAnswer}"` : ''}
+
+**Goal**: Create a short, memorable mnemonic (rhyme, acronym, or word association) to help the student remember the CORRECT answer for this question.
+
+**Guidelines**:
+1. Keep it extremely short (under 20 words).
+2. Make it catchy, funny, or rhyming.
+3. Don't simply explain the answer; give a specific trick to REMEMBER it.
+4. If an acronym fits, use it. If a rhyme fits, use that.
+5. Return ONLY the mnemonic text itself. No "Here is the mnemonic:" prefix.
+
+**Example output**:
+- "To remember the order of planets: My Very Educated Mother Just Served Us Noodles!"
+- "Stalactites hold on tight to the ceiling (has a C for ceiling)!"
+`;
+
+  try {
+    const response = await client.models.generateContent({
+      model: "gemini-2.0-flash-exp",
+      contents: { parts: [{ text: prompt }] },
+    });
+
+    const mnemonic = response.text || "Remember: " + correctAnswer;
+    return mnemonic.trim();
+
+  } catch (error) {
+    console.error("Failed to generate mnemonic:", error);
+    return `Tip: Focus on "${correctAnswer}" next time!`;
+  }
+};

@@ -5,6 +5,7 @@ import { TransparentImage } from './TransparentImage';
 import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon } from '@heroicons/react/24/solid';
 import { useSoundManager } from '../hooks/useSoundManager';
 import { ScholarReport } from './ScholarReport';
+import { generateMnemonic } from '../services/geminiService';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -63,6 +64,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const playerRef = useRef<HTMLDivElement>(null);
   const enemyRef = useRef<HTMLDivElement>(null);
   const [attackDistance, setAttackDistance] = useState<number>(0);
+
+  // Mnemonic Forge State
+  const [mnemonic, setMnemonic] = useState<string | null>(null);
+  const [isForgingMnemonic, setIsForgingMnemonic] = useState(false);
 
   // Track all active timeouts so we can clear them on unmount
   const activeTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -301,6 +306,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         }, 1400);
         // Show explanation after battle animation completes
         safeTimeout(() => {
+          forgeMnemonic(answer);
           setShowExplanation(true);
         }, 2400);
       }, 1500); // 1.5s delay to show red feedback (matches correct answer timing)
@@ -424,6 +430,26 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     );
   };
 
+  // Mnemonic Forge Logic
+  const forgeMnemonic = async (wrongAnswer: string) => {
+    if (!gameState) return;
+    setIsForgingMnemonic(true);
+    setMnemonic(null);
+    try {
+      const result = await generateMnemonic(
+        gameState.current_turn.question,
+        gameState.current_turn.correct_answer || "Unknown",
+        topicName || "General Knowledge",
+        wrongAnswer
+      );
+      setMnemonic(result);
+    } catch (error) {
+      console.error("Failed to forge mnemonic", error);
+    } finally {
+      setIsForgingMnemonic(false);
+    }
+  };
+
   // End Game Screen
   if (gameState.game_status !== GameStatus.PLAYING) {
     const isWin = gameState.game_status === GameStatus.WON;
@@ -472,6 +498,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </div>
             </div>
 
+
+
             {/* Buttons */}
             <div className="space-y-3">
               {missedQuestions.length > 0 && !showScholarReport && (
@@ -494,18 +522,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         </div>
 
         {/* Scholar's Report Overlay */}
-        {showScholarReport && (
-          <ScholarReport
-            topicName={topicName}
-            contextSummary={contextSummary}
-            missedQuestions={missedQuestions}
-            totalQuestions={gameState.stats.total_turns}
-            correctAnswers={gameState.stats.turns_won}
-            onClose={() => { setShowScholarReport(false); onGiveUp(); }}
-            soundManager={soundManager}
-          />
-        )}
-      </div>
+        {
+          showScholarReport && (
+            <ScholarReport
+              topicName={topicName}
+              contextSummary={contextSummary}
+              missedQuestions={missedQuestions}
+              totalQuestions={gameState.stats.total_turns}
+              correctAnswers={gameState.stats.turns_won}
+              onClose={() => { setShowScholarReport(false); onGiveUp(); }}
+              soundManager={soundManager}
+            />
+          )
+        }
+      </div >
     );
   }
 
@@ -715,6 +745,32 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   {gameState.current_turn.answer_explanation}
                 </p>
               )}
+
+              {/* Mnemonic Forge Card */}
+              <div className="bg-purple-50 rounded-xl p-4 mb-6 border-2 border-purple-100 relative overflow-hidden">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="text-xl">🧠</span>
+                  <h4 className="font-extrabold text-purple-700 text-xs tracking-widest uppercase">Memory Anchor</h4>
+                </div>
+
+                {isForgingMnemonic ? (
+                  <div className="flex flex-col items-center py-2 space-y-2">
+                    <SparklesIcon className="w-6 h-6 text-purple-400 animate-spin" />
+                    <p className="text-xs font-bold text-purple-400 animate-pulse">Forging Brain Hack...</p>
+                  </div>
+                ) : mnemonic ? (
+                  <div className="relative z-10 animate-fadeScale">
+                    <p className="text-purple-900 font-bold italic text-sm leading-relaxed">
+                      "{mnemonic}"
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-purple-300">Could not forge mnemonic.</p>
+                )}
+
+                {/* Decorative background sparkle */}
+                <SparklesIcon className="absolute -bottom-4 -right-4 w-20 h-20 text-purple-200/50 rotate-12" />
+              </div>
               <button
                 onClick={() => { soundManager.playButtonClick(); dismissExplanation(); }}
                 className="w-full py-4 bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-white border-b-4 border-sky-600 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1"
@@ -730,6 +786,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         @keyframes float {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-8px); }
+        }
+        @keyframes fadeScale {
+          0% { opacity: 0; transform: scale(0.9); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeScale {
+          animation: fadeScale 0.5s ease-out forwards;
         }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
