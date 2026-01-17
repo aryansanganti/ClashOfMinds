@@ -30,10 +30,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   onAction,
   onTransitionComplete,
   onGiveUp,
-  soundManager,
   missedQuestions,
   topicName,
-  contextSummary
+  contextSummary,
   onSaveAndQuit,
   onUsePowerup,
   soundManager
@@ -616,21 +615,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 <span className="text-[10px] font-bold text-white/70 group-hover:text-white transition-colors uppercase">Save</span>
               </button>
             )}
-
-            {/* Wisdom Scroll Button */}
-            <button
-              onClick={handleWisdomScroll}
-              disabled={isFetchingWisdom || showWisdomModal}
-              className={`
-                bg-amber-500/80 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border border-amber-300/30 
-                hover:bg-amber-400 transition-all group relative overflow-hidden
-                ${isFetchingWisdom ? 'animate-pulse cursor-wait' : ''}
-              `}
-              title="Use Wisdom Scroll (Get a Hint)"
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-              <LightBulbIcon className={`w-5 h-5 text-white ${isFetchingWisdom ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'}`} />
-            </button>
           </div>
         </div>
       </div>
