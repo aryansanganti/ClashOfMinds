@@ -1,0 +1,15 @@
+# Render.com Web Service Configuration
+# Create a New Web Service on Render and use these settings:
+# - Build Command: npm install
+# - Start Command: node server/index.js
+# - Environment: Node
+
+services:
+  - type: web
+    name: clash-of-minds-server
+    env: node
+    buildCommand: npm install
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production

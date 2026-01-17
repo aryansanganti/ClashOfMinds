@@ -122,12 +122,48 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
   // 1. Remove markdown code blocks
   let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-  // 2. Find the absolute first '{' and last '}' to handle any conversational prefix/suffix
+  // 2. Robustly find the matching closing brace to ignore trailing text
   const startIdx = cleanJson.indexOf('{');
-  const endIdx = cleanJson.lastIndexOf('}');
+  if (startIdx !== -1) {
+    let openBraces = 0;
+    let endIdx = -1;
+    let inString = false;
+    let isEscaped = false;
 
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    cleanJson = cleanJson.substring(startIdx, endIdx + 1);
+    for (let i = startIdx; i < cleanJson.length; i++) {
+      const char = cleanJson[i];
+
+      if (isEscaped) {
+        isEscaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        isEscaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === '{') {
+          openBraces++;
+        } else if (char === '}') {
+          openBraces--;
+          if (openBraces === 0) {
+            endIdx = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (endIdx !== -1) {
+      cleanJson = cleanJson.substring(startIdx, endIdx + 1);
+    }
   }
 
   console.log("[initializeGame] Cleaned JSON:", cleanJson.substring(0, 500));
@@ -150,9 +186,9 @@ export const initializeGame = async (params: InitGameParams): Promise<FullGameMa
   const defaultTheme = {
     setting: "A wacky cartoon world",
     boss_name: "The Challenge Boss",
-    boss_visual_prompt: "Cute cartoon monster, 3d render, solid green background, NO green on character",
-    player_visual_prompt: `${playerDesc} hero, 3d render, solid green background, NO green on character`,
-    background_visual_prompt: "Cartoon landscape background"
+    boss_visual_prompt: "Epic 3D render of a menacing Raid Boss monster, high detail, 4k, dramatic lighting, imposing stance, solid bright green background, NO green on character, MUST face LEFT",
+    player_visual_prompt: `${playerDesc} hero, 3d render, solid green background, NO green on character, facing RIGHT`,
+    background_visual_prompt: "Epic fantasy landscape background, high detail, 4k"
   };
   // Ensure theme object exists and has all keys filled
   state.theme = { ...defaultTheme, ...(state.theme || {}) };

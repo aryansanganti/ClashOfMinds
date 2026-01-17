@@ -187,6 +187,10 @@ export interface CompetitionRoomState {
   timeLimitSeconds: number;
   status: 'WAITING' | 'STARTING' | 'PLAYING' | 'FINISHED';
   winnerId?: string;
+  // Raid Extension
+  gameMode?: 'BATTLE' | 'RAID';
+  bossHp?: number;
+  bossMaxHp?: number;
 }
 
 export interface CompetitionTurnResult {

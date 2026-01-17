@@ -9,6 +9,7 @@ interface CompetitionSetupProps {
     onGameStart: (roomState: CompetitionRoomState) => void;
     onBack: () => void;
     multiplayer: any;
+    isRaid?: boolean;
 }
 
 const AVATAR_PROMPTS: Record<string, string> = {
@@ -24,7 +25,7 @@ const AVATAR_PROMPTS: Record<string, string> = {
     '🤠': 'Cute 3d cartoon cowboy, wearing a hat and sheriff badge, holding a lasso'
 };
 
-export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart, onBack, multiplayer }) => {
+export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart, onBack, multiplayer, isRaid = false }) => {
     const [step, setStep] = useState<1 | 2>(1); // 1: Profile, 2: Lobby
     const [mode, setMode] = useState<'HOST' | 'JOIN'>('HOST');
 
@@ -116,6 +117,9 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                 topic: currentTopic,
                 difficulty: currentDifficulty,
                 timeLimitSeconds: 60,
+                gameMode: isRaid ? 'RAID' : 'BATTLE',
+                bossHp: isRaid ? 100 : undefined,
+                bossMaxHp: isRaid ? 100 : undefined,
                 status: 'PLAYING'
             };
 
@@ -164,7 +168,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
             const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
             setRoomId(newRoomId);
             // Join as Host
-            multiplayer.joinRoom(newRoomId, myProfile);
+            multiplayer.joinRoom(newRoomId, myProfile, isRaid ? 'RAID' : 'BATTLE');
         }
     };
 
@@ -182,7 +186,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
             score: 0,
             progress: 0
         };
-        multiplayer.joinRoom(joinCode, myProfile);
+        multiplayer.joinRoom(joinCode, myProfile, isRaid ? 'RAID' : 'BATTLE');
     };
 
     const handleStartGameHost = () => {
@@ -230,7 +234,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                         <Swords className="w-10 h-10" />
                     </div>
                     <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">
-                        {step === 1 ? 'Setup Profile' : (mode === 'HOST' ? 'Lobby Host' : 'Join Lobby')}
+                        {step === 1 ? 'Setup Profile' : (mode === 'HOST' ? (isRaid ? 'Host Raid' : 'Lobby Host') : (isRaid ? 'Join Raid' : 'Join Lobby'))}
                     </h2>
                 </div>
 
@@ -302,7 +306,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                     <div className="space-y-6 animate-fadeIn">
                         <div className="text-center bg-slate-800 text-white p-6 rounded-2xl relative overflow-hidden group">
                             <div className="absolute inset-0 bg-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Room Code</p>
+                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">{isRaid ? 'Raid Code' : 'Room Code'}</p>
                             <p className="text-5xl font-black font-mono tracking-widest text-indigo-400 select-all">{roomId}</p>
                             <button
                                 onClick={() => navigator.clipboard.writeText(roomId)}
@@ -354,7 +358,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-bold text-slate-700">{opponent.name}</p>
-                                        <p className="text-xs font-bold text-green-600 uppercase">Ready to battle!</p>
+                                        <p className="text-xs font-bold text-green-600 uppercase">{isRaid ? 'Teammate Ready!' : 'Ready to battle!'}</p>
                                     </div>
                                 </div>
                             ) : (
@@ -363,7 +367,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                                         ⏳
                                     </div>
                                     <div>
-                                        <p className="font-bold">Waiting for opponent...</p>
+                                        <p className="font-bold">{isRaid ? 'Waiting for teammates...' : 'Waiting for opponent...'}</p>
                                         <p className="text-xs">Share the code above</p>
                                     </div>
                                 </div>
@@ -375,7 +379,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                             disabled={!topic || !opponent}
                             className="w-full py-4 bg-green-500 hover:bg-green-400 text-white border-b-4 border-green-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 disabled:opacity-50 disabled:grayscale"
                         >
-                            Start Battle
+                            Start {isRaid ? 'Raid' : 'Battle'}
                         </button>
                     </div>
                 )}
@@ -416,7 +420,7 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
                                         </div>
                                         <p className="font-bold text-slate-700 text-sm">You</p>
                                     </div>
-                                    <div className="text-2xl font-black text-slate-300">VS</div>
+                                    <div className="text-2xl font-black text-slate-300">{isRaid ? '+' : 'VS'}</div>
                                     <div className="text-center">
                                         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-3xl mb-2 mx-auto overflow-hidden shadow-inner border-2 border-red-300">
                                             {opponent.imageUrl ? (

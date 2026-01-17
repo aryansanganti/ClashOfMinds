@@ -21,9 +21,10 @@ const rooms = new Map();
 io.on('connection', (socket) => {
     console.log(`User Connected: ${socket.id}`);
 
-    // Join Room - accepts { roomId, player } from client
+    // Join Room - accepts { roomId, player, gameMode } from client
     socket.on('join_room', (data) => {
-        const { roomId, player } = data; // Changed from 'profile' to 'player'
+        // data.gameMode should be 'BATTLE' or 'RAID' (only used by creator)
+        const { roomId, player, gameMode } = data;
 
         if (!player || !roomId) {
             console.error('Invalid join_room data:', data);
@@ -37,14 +38,17 @@ io.on('connection', (socket) => {
             room = {
                 id: roomId,
                 host: player,
-                opponent: null
+                opponent: null, // In Raid, this is Player 2
+                gameMode: gameMode || 'BATTLE',
+                bossHp: 100, // Default Boss HP for Raid
+                bossMaxHp: 100
             };
             rooms.set(roomId, room);
-            console.log(`Room ${roomId} created by ${player.name}`);
+            console.log(`Room ${roomId} created by ${player.name} in ${room.gameMode} mode`);
         } else {
             if (room.host && room.host.id !== player.id && !room.opponent) {
                 room.opponent = player;
-                console.log(`${player.name} joined room ${roomId} as opponent`);
+                console.log(`${player.name} joined room ${roomId}`);
             }
         }
 
@@ -54,12 +58,27 @@ io.on('connection', (socket) => {
     // Start Game Request
     socket.on('start_game_request', (data) => {
         console.log(`Game starting in room ${data.roomId}`);
+        // If Raid, reset Boss HP? Or set it based on difficulty?
+        // We'll let client handle visuals, server just tracks value if needed.
         io.to(data.roomId).emit('game_start', { config: data.gameConfig });
     });
 
-    // Score Update
+    // Score Update (Battle Mode)
     socket.on('score_update', (data) => {
         io.to(data.roomId).emit('score_update', data);
+    });
+
+    // Boss Damage (Raid Mode)
+    socket.on('boss_damage', (data) => {
+        const room = rooms.get(data.roomId);
+        if (room && room.gameMode === 'RAID') {
+            room.bossHp = Math.max(0, room.bossHp - data.damage);
+            io.to(data.roomId).emit('boss_update', { bossHp: room.bossHp, damage: data.damage, attackerId: data.playerId });
+
+            if (room.bossHp <= 0) {
+                io.to(data.roomId).emit('raid_victory', { finalHitBy: data.playerId });
+            }
+        }
     });
 
     // Chat Message

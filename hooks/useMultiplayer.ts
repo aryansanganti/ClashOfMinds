@@ -41,12 +41,16 @@ export const useMultiplayer = () => {
         };
     }, []);
 
-    const joinRoom = (roomId: string, player: PlayerProfile) => {
-        socketRef.current?.emit('join_room', { roomId, player });
+    const joinRoom = (roomId: string, player: PlayerProfile, gameMode: 'BATTLE' | 'RAID' = 'BATTLE') => {
+        socketRef.current?.emit('join_room', { roomId, player, gameMode });
     };
 
     const updateScore = (roomId: string, playerId: string, score: number) => {
         socketRef.current?.emit('score_update', { roomId, playerId, score });
+    };
+
+    const damageBoss = (roomId: string, playerId: string, damage: number) => {
+        socketRef.current?.emit('boss_damage', { roomId, playerId, damage });
     };
 
     const sendChat = (roomId: string, playerId: string, message: string) => {
@@ -59,6 +63,7 @@ export const useMultiplayer = () => {
         messages,
         joinRoom,
         updateScore,
+        damageBoss,
         sendChat
     };
 };

@@ -11,6 +11,7 @@ import { LoadingProgress } from './components/LoadingProgress';
 import { LobbyScreen } from './components/LobbyScreen';
 import { CompetitionSetup } from './components/CompetitionSetup';
 import { CompetitionGameScreen } from './components/CompetitionGameScreen';
+import { RaidGameScreen } from './components/RaidGameScreen';
 import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import { Swords } from 'lucide-react';
 import { useSoundManager } from './hooks/useSoundManager';
@@ -29,7 +30,7 @@ const GameApp: React.FC = () => {
   // Hooks must run unconditionally
   const { logout, currentUser } = useAuth();
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'COMPETITION_GAME'>('MENU');
+  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'RAID_SETUP' | 'COMPETITION_GAME'>('MENU');
   const [raidFriends, setRaidFriends] = useState<string[]>([]);
   const [competitionRoom, setCompetitionRoom] = useState<CompetitionRoomState | null>(null);
 
@@ -139,13 +140,10 @@ const GameApp: React.FC = () => {
   };
   // Check for saved game on mount
   useEffect(() => {
-    console.log('[Resume Check] Effect triggered:', { currentUser: !!currentUser, view, gameState: !!gameState });
     if (currentUser && view === 'MENU' && !gameState) {
       const hasSave = hasSavedGame(currentUser.uid);
-      console.log('[Resume Check] Has saved game:', hasSave);
       if (hasSave) {
         const saved = loadGameState(currentUser.uid);
-        console.log('[Resume Check] Loaded save data:', saved);
         if (saved) {
           setSavedGameData(saved);
           setShowResumeModal(true);
@@ -785,9 +783,9 @@ const GameApp: React.FC = () => {
   };
 
   const handleOpenLobby = () => {
-    if (!topic && !file && !pastedContent) return;
+    // Raid setup handles topic selection, so we don't strictly need it here
     soundManager.playButtonClick();
-    setView('LOBBY');
+    setView('RAID_SETUP');
   };
 
   const handleDismissApiError = () => {
@@ -826,11 +824,28 @@ const GameApp: React.FC = () => {
         </div>
       )}
 
+      {/* Global Loading Overlay */}
+      {loading && loadingProgress && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-6 bg-white/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-white p-6 rounded-3xl shadow-2xl border-4 border-slate-100">
+            <h3 className="text-center text-xl font-black text-slate-800 mb-2 uppercase tracking-wide">Generating Game</h3>
+            <LoadingProgress progress={loadingProgress} />
+          </div>
+        </div>
+      )}
+
       {view === 'LOBBY' ? (
         <LobbyScreen
           topic={topic || (file ? file.name : "Context Content")}
           onStartRaid={(friends) => handleStartGame('COOP', friends)}
           onBack={() => setView('MENU')}
+        />
+      ) : view === 'RAID_SETUP' ? (
+        <CompetitionSetup
+          onGameStart={handleCompetitionStart}
+          onBack={() => setView('MENU')}
+          multiplayer={multiplayer}
+          isRaid={true}
         />
       ) : view === 'COMPETITION_SETUP' ? (
         <CompetitionSetup
@@ -839,14 +854,25 @@ const GameApp: React.FC = () => {
           multiplayer={multiplayer}
         />
       ) : view === 'COMPETITION_GAME' && competitionRoom && gameState ? (
-        <CompetitionGameScreen
-          roomState={competitionRoom}
-          gameState={gameState}
-          allTurns={competitionTurns.current}
-          onGameEnd={handleCompetitionEnd}
-          onBack={() => setView('MENU')}
-          multiplayer={multiplayer}
-        />
+        competitionRoom.gameMode === 'RAID' ? (
+          <RaidGameScreen
+            roomState={competitionRoom}
+            gameState={gameState}
+            allTurns={competitionTurns.current}
+            onGameEnd={handleCompetitionEnd}
+            onBack={() => setView('MENU')}
+            multiplayer={multiplayer}
+          />
+        ) : (
+          <CompetitionGameScreen
+            roomState={competitionRoom}
+            gameState={gameState}
+            allTurns={competitionTurns.current}
+            onGameEnd={handleCompetitionEnd}
+            onBack={() => setView('MENU')}
+            multiplayer={multiplayer}
+          />
+        )
       ) : view === 'MENU' ? (
         <div className="flex items-center justify-center min-h-screen p-4">
           <div className="w-full max-w-lg">
@@ -1269,10 +1295,7 @@ const GameApp: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Loading Progress Bar */}
-                    {loading && loadingProgress && (
-                      <LoadingProgress progress={loadingProgress} />
-                    )}
+
 
                     {/* Manual Resume Button (Debug/Fallback) */}
                     {!loading && currentUser && hasSavedGame(currentUser.uid) && (
