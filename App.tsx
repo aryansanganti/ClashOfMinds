@@ -252,7 +252,8 @@ const GameApp: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [useGhosts, setUseGhosts] = useState(false); // Ghosts of Battles Past Toggle
   const [showGrimoire, setShowGrimoire] = useState(false);
-  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'COMPETITION_GAME' | 'OFFLINE_MENU'>('MENU');
+  const [gameMode, setGameMode] = useState<'SOLO' | 'RAID' | 'PVP'>('SOLO');
+  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'RAID_SETUP' | 'COMPETITION_GAME' | 'RAID_GAME' | 'OFFLINE_MENU'>('MENU');
   const [offlineBattles, setOfflineBattles] = useState<OfflineBattlePack[]>([]);
   const [isPreloading, setIsPreloading] = useState(false);
   const [raidFriends, setRaidFriends] = useState<string[]>([]);
@@ -657,7 +658,11 @@ const GameApp: React.FC = () => {
       const bgImg = await generateGameImage(manifest.gameState.theme.background_visual_prompt, true);
       setBackgroundImage(bgImg);
 
-      setView('COMPETITION_GAME');
+      if (gameMode === 'RAID') {
+        setView('RAID_GAME');
+      } else {
+        setView('COMPETITION_GAME');
+      }
     } catch (e) {
       console.error("Competition Init Error", e);
       alert("Failed to start battle. Please try again.");
@@ -1070,8 +1075,24 @@ const GameApp: React.FC = () => {
           onBack={() => setView('MENU')}
           multiplayer={multiplayer}
         />
+      ) : view === 'RAID_SETUP' ? (
+        <CompetitionSetup
+          onGameStart={handleCompetitionStart}
+          onBack={() => setView('MENU')}
+          multiplayer={multiplayer}
+          isRaid={true}
+        />
       ) : view === 'COMPETITION_GAME' && competitionRoom && gameState ? (
         <CompetitionGameScreen
+          roomState={competitionRoom}
+          gameState={gameState}
+          allTurns={competitionTurns.current}
+          onGameEnd={handleCompetitionEnd}
+          onBack={() => setView('MENU')}
+          multiplayer={multiplayer}
+        />
+      ) : view === 'RAID_GAME' && competitionRoom && gameState ? (
+        <RaidGameScreen
           roomState={competitionRoom}
           gameState={gameState}
           allTurns={competitionTurns.current}
@@ -1330,13 +1351,13 @@ const GameApp: React.FC = () => {
               {!showSettings && !showStats && (
                 <div className="mb-6 flex gap-3">
                   <button
-                    onClick={() => { soundManager.playButtonClick(); handleOpenLobby(); }}
+                    onClick={() => { soundManager.playButtonClick(); setGameMode('RAID'); setView('RAID_SETUP'); }}
                     className="flex-1 py-3 bg-purple-500 hover:bg-purple-400 text-white border-b-4 border-purple-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
                   >
                     <UserGroupIcon className="w-5 h-5" /> Raid
                   </button>
                   <button
-                    onClick={() => { soundManager.playButtonClick(); setView('COMPETITION_SETUP'); }}
+                    onClick={() => { soundManager.playButtonClick(); setGameMode('PVP'); setView('COMPETITION_SETUP'); }}
                     className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white border-b-4 border-red-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
                   >
                     <Swords className="w-5 h-5" /> 1v1 Battle
