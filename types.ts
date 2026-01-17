@@ -227,11 +227,3 @@ export interface StudyGuide {
   sections: StudyGuideSection[];
   motivationalMessage: string;
 }
-
-export interface OfflineBattlePack {
-  id: string;
-  timestamp: number;
-  topic: string;
-  difficulty: Difficulty;
-  manifest: FullGameManifest;
-}

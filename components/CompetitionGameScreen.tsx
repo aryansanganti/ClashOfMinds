@@ -99,7 +99,10 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
         // TIMER
         const timer = setInterval(() => {
             setTimeLeft(prev => {
-                if (prev <= 0) return 0;
+                if (prev <= 1) {
+                    handleGameOver();
+                    return 0;
+                }
                 return prev - 1;
             });
         }, 1000);
@@ -117,12 +120,6 @@ export const CompetitionGameScreen: React.FC<CompetitionGameProps> = ({ roomStat
 
     // --- TURN ANIMATION LOOP ---
     // Trigger animations when turn index changes
-    useEffect(() => {
-        if (timeLeft === 0 && gameStatus === 'PLAYING') {
-            handleGameOver();
-        }
-    }, [timeLeft, gameStatus]);
-
     useEffect(() => {
         runTurnIntro();
     }, [currentTurnIndex]);
