@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, GameStatus, MissedQuestion } from '../types';
 import { ProgressBar } from './ProgressBar';
 import { TransparentImage } from './TransparentImage';
-import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon } from '@heroicons/react/24/solid';
+import { StarIcon, XMarkIcon, CheckIcon, SparklesIcon, SpeakerWaveIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
 import { useSoundManager } from '../hooks/useSoundManager';
 import { ScholarReport } from './ScholarReport';
-import { generateMnemonic } from '../services/geminiService';
+import { generateMnemonic, speakLikeBoss } from '../services/geminiService';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -72,6 +73,63 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   // Mnemonic Forge State
   const [mnemonic, setMnemonic] = useState<string | null>(null);
   const [isForgingMnemonic, setIsForgingMnemonic] = useState(false);
+
+  // Oracle Mode State
+  const [oracleModeEnabled, setOracleModeEnabled] = useState(false);
+  const { isListening, transcript, startListening, stopListening, hasSupport } = useSpeechRecognition();
+
+  // Oracle Narration
+  useEffect(() => {
+    if (oracleModeEnabled && showQuestion && gameState.current_turn.question && !waitingForTurn) {
+      // Short delay to allow UI to settle
+      const t = setTimeout(() => {
+        speakLikeBoss(gameState.current_turn.question);
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [oracleModeEnabled, showQuestion, gameState.current_turn.question, waitingForTurn]);
+
+  // Voice Command Matching
+  useEffect(() => {
+    if (!transcript || !isListening || isProcessing) return;
+    const clean = transcript.toLowerCase().trim();
+    if (!clean) return;
+
+    console.log("Voice Input:", clean);
+
+    // Helper to trigger action
+    const trigger = (ans: string) => {
+      handleAction(ans);
+      stopListening();
+    };
+
+    // Check Options
+    const options = gameState.current_turn.options || [];
+    // 1. Direct match
+    const directMatch = options.find(o => clean.includes(o.toLowerCase()));
+    if (directMatch) { trigger(directMatch); return; }
+
+    // 2. "Option A/B/C" logic
+    if (gameState.current_turn.challenge_type === 'MULTIPLE_CHOICE' && options.length > 0) {
+      const labels = ['a', 'b', 'c', 'd'];
+      // Matches "Option A", "Option B", or just "A", "B" (case insensitive due to clean)
+      const match = clean.match(/^(?:option\s+)?([a-d])$/);
+      if (match) {
+        const idx = labels.indexOf(match[1]);
+        if (idx !== -1 && idx < options.length) {
+          trigger(options[idx]);
+          return;
+        }
+      }
+    }
+
+    // 3. True/False
+    if (gameState.current_turn.challenge_type === 'TRUE_FALSE') {
+      if (clean.includes('true')) trigger('TRUE');
+      else if (clean.includes('false')) trigger('FALSE');
+    }
+
+  }, [transcript, isListening, gameState.current_turn, isProcessing]);
 
   // Track all active timeouts so we can clear them on unmount
   const activeTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -627,6 +685,23 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 )}
               </button>
             )}
+            {/* Oracle Mode Toggle */}
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                setOracleModeEnabled(!oracleModeEnabled);
+                if (oracleModeEnabled) window.speechSynthesis.cancel();
+              }}
+              className={`bg-black/60 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border transition-all group ${oracleModeEnabled ? 'border-purple-400 bg-purple-900/40' : 'border-white/10 hover:bg-white/10'}`}
+              title={oracleModeEnabled ? "Disable Oracle Mode" : "Enable Oracle Mode (Voice)"}
+            >
+              {oracleModeEnabled ? (
+                <SpeakerWaveIcon className="w-5 h-5 text-purple-400 animate-pulse" />
+              ) : (
+                <SpeakerWaveIcon className="w-5 h-5 text-white/50 group-hover:text-white" />
+              )}
+            </button>
+
             {/* Give Up */}
             <button
               onClick={() => { soundManager.playButtonClick(); onGiveUp(); }}
@@ -689,16 +764,45 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             }}
           >
             {/* Question */}
-            <div className="p-4 md:p-6 lg:p-8">
+            <div className="p-4 md:p-6 lg:p-8 relative">
               <p className="text-slate-400 text-[10px] md:text-xs lg:text-sm font-bold uppercase tracking-widest mb-1 md:mb-2 text-center">
                 Question {gameState.stats.current_turn_index + 1}
               </p>
-              <h2 className="text-slate-800 font-black text-sm md:text-lg lg:text-xl leading-snug md:leading-relaxed text-center mb-3 md:mb-5 lg:mb-6">
+              <h2 className="text-slate-800 font-black text-sm md:text-lg lg:text-xl leading-snug md:leading-relaxed text-center mb-3 md:mb-5 lg:mb-6 flex items-center justify-center gap-2">
                 {gameState.current_turn.question}
+                {oracleModeEnabled && (
+                  <button
+                    onClick={() => speakLikeBoss(gameState.current_turn.question)}
+                    className="p-1 rounded-full hover:bg-slate-100 text-purple-500"
+                  >
+                    <SpeakerWaveIcon className="w-4 h-4" />
+                  </button>
+                )}
               </h2>
 
               {/* Answers */}
               {renderAnswers()}
+
+              {/* Voice Input Indicator (Floating or centered) */}
+              {oracleModeEnabled && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); startListening(); }}
+                    onMouseUp={(e) => { e.preventDefault(); stopListening(); }}
+                    onMouseLeave={(e) => { e.preventDefault(); stopListening(); }}
+                    onTouchStart={(e) => { e.preventDefault(); startListening(); }}
+                    onTouchEnd={(e) => { e.preventDefault(); stopListening(); }}
+                    onClick={(e) => e.preventDefault()}
+                    className={`
+                        flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs uppercase tracking-widest transition-all select-none touch-none
+                        ${isListening ? 'bg-red-500 text-white animate-pulse shadow-red-500/50 shadow-lg scale-105' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95'}
+                      `}
+                  >
+                    <MicrophoneIcon className="w-4 h-4" />
+                    {isListening ? (transcript || "Listening...") : "Hold to Speak"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

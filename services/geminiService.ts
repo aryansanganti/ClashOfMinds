@@ -623,3 +623,54 @@ ${playerAnswer ? `- Student's Wrong Answer: "${playerAnswer}"` : ''}
     return `Tip: Focus on "${correctAnswer}" next time!`;
   }
 };
+
+export const speakLikeBoss = async (text: string): Promise<void> => {
+  // 1. Attempt to use Gemini TTS (Experimental / Future Implementation)
+  // Since the specific 'gemini-2.5-flash-preview-tts' API surface is not yet standard in the client library,
+  // we will fallback to a robust Browser Speech Synthesis implementation tailored to sound like a "Boss".
+
+  /* 
+  // Future Implementation for Gemini TTS:
+  try {
+    const client = getAiClient();
+    const response = await client.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: { parts: [{ text }] },
+    });
+    // Play audio blob...
+  } catch (e) { ... } 
+  */
+
+  // 2. Browser Fallback: "Heavy Boss Voice"
+  return new Promise((resolve, reject) => {
+    if (!window.speechSynthesis) {
+      console.warn("Browser does not support speech synthesis");
+      resolve();
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Find a suitable deep voice
+    const voices = window.speechSynthesis.getVoices();
+    // Prefer "Google US English" or similar if available, or just the first male voice
+    const preferredVoice = voices.find(v => v.name.includes("Google US English") || v.name.includes("Male"));
+    if (preferredVoice) utterance.voice = preferredVoice;
+
+    // "Heavy" Boss Persona Settings
+    utterance.pitch = 0.6; // Deep pitch
+    utterance.rate = 0.9;  // Slightly slow, authoritative
+    utterance.volume = 1.0;
+
+    utterance.onend = () => resolve();
+    utterance.onerror = (e) => {
+      console.error("Speech synthesis error", e);
+      resolve(); // Resolve anyway to not block game flow
+    };
+
+    window.speechSynthesis.speak(utterance);
+  });
+};
