@@ -12,7 +12,9 @@ import { LobbyScreen } from './components/LobbyScreen';
 import { CompetitionSetup } from './components/CompetitionSetup';
 import { CompetitionGameScreen } from './components/CompetitionGameScreen';
 import { GrimoireModal } from './components/GrimoireModal';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon, BookOpenIcon } from '@heroicons/react/24/solid';
+import { saveBattleForOffline, getOfflineBattles, deleteOfflineBattle } from './services/offlineService';
+import { OfflineBattlePack } from './types';
+import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon, BookOpenIcon, WifiIcon, TrashIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
 import { Swords } from 'lucide-react';
 import { useSoundManager } from './hooks/useSoundManager';
 import { useMultiplayer } from './hooks/useMultiplayer';
@@ -248,7 +250,9 @@ const GameApp: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [useGhosts, setUseGhosts] = useState(false); // Ghosts of Battles Past Toggle
   const [showGrimoire, setShowGrimoire] = useState(false);
-  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'COMPETITION_GAME'>('MENU');
+  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'COMPETITION_GAME' | 'OFFLINE_MENU'>('MENU');
+  const [offlineBattles, setOfflineBattles] = useState<OfflineBattlePack[]>([]);
+  const [isPreloading, setIsPreloading] = useState(false);
   const [raidFriends, setRaidFriends] = useState<string[]>([]);
   const [competitionRoom, setCompetitionRoom] = useState<CompetitionRoomState | null>(null);
 
@@ -1073,6 +1077,144 @@ const GameApp: React.FC = () => {
           onBack={() => setView('MENU')}
           multiplayer={multiplayer}
         />
+      ) : view === 'OFFLINE_MENU' ? (
+        <div className="min-h-screen p-4 flex items-center justify-center">
+          <div className="bg-white rounded-[2rem] p-8 shadow-2xl max-w-2xl w-full border-b-8 border-slate-200 relative">
+            <button onClick={() => setView('MENU')} className="absolute top-6 left-6 p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-all"><ArrowLeftOnRectangleIcon className="w-6 h-6 rotate-180" /></button>
+
+            <div className="text-center mb-8">
+              <div className="inline-block p-4 rounded-3xl bg-slate-800 text-white mb-4 shadow-lg">
+                <WifiIcon className="w-10 h-10" />
+              </div>
+              <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Offline Mode</h2>
+              <p className="text-slate-500 font-bold">Play pre-generated battles without internet</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Preload New Battle */}
+              <div className="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-100">
+                <h3 className="font-black text-indigo-900 mb-2 flex items-center gap-2">
+                  <CloudArrowDownIcon className="w-5 h-5" />
+                  Download New Battle
+                </h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    id="offline-topic"
+                    placeholder="Enter Topic (e.g. Space, Python)..."
+                    className="flex-1 px-4 py-3 rounded-xl border-2 border-indigo-200 font-bold text-indigo-900 focus:border-indigo-500 outline-none"
+                  />
+                  <button
+                    onClick={async () => {
+                      const input = document.getElementById('offline-topic') as HTMLInputElement;
+                      if (!input.value) return;
+                      setIsPreloading(true);
+                      try {
+                        await saveBattleForOffline({
+                          topic: input.value,
+                          numQuestions: 5,
+                          difficulty: 'NORMAL',
+                          gender: 'RANDOM',
+                          age: 'Random',
+                          ethnicity: 'Random',
+                          mode: 'SOLO'
+                        });
+                        setOfflineBattles(getOfflineBattles());
+                        input.value = '';
+                        soundManager.playVictory();
+                      } catch (e) {
+                        alert("Failed to download: " + e);
+                      }
+                      setIsPreloading(false);
+                    }}
+                    disabled={isPreloading}
+                    className="px-6 py-3 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-600 disabled:opacity-50 transition-all"
+                  >
+                    {isPreloading ? 'Downloading...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Saved Battles List */}
+              <div>
+                <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-3">Saved Battles</h3>
+                {offlineBattles.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8 font-bold italic">No offline battles saved yet.</p>
+                ) : (
+                  <div className="grid gap-3">
+                    {offlineBattles.map(battle => (
+                      <div key={battle.id} className="bg-white border-2 border-slate-200 p-4 rounded-xl flex justify-between items-center hover:border-indigo-400 transition-colors group shadow-sm">
+                        <div>
+                          <p className="font-black text-slate-700 text-lg">{battle.topic}</p>
+                          <p className="text-xs font-bold text-slate-400">
+                            {new Date(battle.timestamp).toLocaleDateString()} • {battle.difficulty}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              soundManager.playBattleMusic();
+                              // Load Manifest directly into Game State
+                              setGameState({
+                                game_status: 'PLAYING',
+                                topic_title: battle.topic,
+                                theme: battle.manifest.theme,
+                                stats: {
+                                  current_turn_index: 0,
+                                  total_turns: battle.manifest.allTurns.length,
+                                  player_hp: 100,
+                                  player_max_hp: 100,
+                                  score: 0,
+                                  streak: 0,
+                                  correct_answers: 0,
+                                  wrong_answers: 0
+                                },
+                                current_turn: battle.manifest.allTurns[0],
+                                // Note: We need to store full turns somewhere if GameApp uses 'competitionTurns' ref or similar for local too??
+                                // Ah, GameApp usually constructs turns locally or via initializeGame. 
+                                // Wait, GameApp relies on `gameState.current_turn` updating.
+                                // We need a mechanism to advance turns for offline play if 'App.tsx' handles logic.
+                                // App.tsx handles 'handleAnswer' which calls 'nextTurn' which calls AI usually?
+                                // NO: 'turn_generation_mode' is usually AI.
+                                // We need to inject the FULL list of turns into a state so `nextTurn` just picks the next one without AI.
+                              });
+                              // Populate preloadedTurns from pack
+                              preloadedTurns.current = battle.manifest.allTurns.map((turn, i) => ({
+                                content: turn,
+                                bossImage: undefined
+                              }));
+
+                              // Set Images
+                              setPlayerImage(undefined);
+                              setBackgroundImage(undefined);
+                              setBossImage(undefined);
+
+                              setView('GAME');
+                            }}
+                            className="px-4 py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 shadow-md active:translate-y-1 transition-all"
+                          >
+                            Play
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm("Delete this battle?")) {
+                                deleteOfflineBattle(battle.id);
+                                setOfflineBattles(getOfflineBattles());
+                              }
+                            }}
+                            className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       ) : view === 'MENU' ? (
         <div className="flex items-center justify-center min-h-screen p-4">
           <div className="w-full max-w-lg">
@@ -1120,6 +1262,20 @@ const GameApp: React.FC = () => {
                     className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-indigo-500"
                   >
                     <BookOpenIcon className="w-6 h-6" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      soundManager.playButtonClick();
+                      setOfflineBattles(getOfflineBattles());
+                      setView('OFFLINE_MENU');
+                      setShowSettings(false);
+                      setShowMenu(false);
+                    }}
+                    disabled={loading}
+                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-slate-600"
+                    title="Offline Mode"
+                  >
+                    <WifiIcon className="w-6 h-6" />
                   </button>
                   <button
                     onClick={() => { soundManager.playButtonClick(); setShowStats(true); setShowSettings(false); setShowMenu(false); }}

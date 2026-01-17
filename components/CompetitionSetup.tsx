@@ -185,9 +185,12 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
         multiplayer.joinRoom(joinCode, myProfile);
     };
 
+    const [isStarting, setIsStarting] = useState(false);
+
     const handleStartGameHost = () => {
         if (!multiplayer.socket) return;
         soundManager.playButtonClick();
+        setIsStarting(true); // Start loading
 
         // We need to send MY profile and THE OPPONENT'S profile to the game start config
         // so the other player knows who is who.
@@ -211,6 +214,9 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
         };
 
         multiplayer.socket.emit('start_game_request', { roomId, gameConfig: config });
+
+        // Safety timeout in case server doesn't respond
+        setTimeout(() => setIsStarting(false), 8000);
     };
 
     return (
@@ -372,10 +378,17 @@ export const CompetitionSetup: React.FC<CompetitionSetupProps> = ({ onGameStart,
 
                         <button
                             onClick={handleStartGameHost}
-                            disabled={!topic || !opponent}
-                            className="w-full py-4 bg-green-500 hover:bg-green-400 text-white border-b-4 border-green-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 disabled:opacity-50 disabled:grayscale"
+                            disabled={!topic || !opponent || isStarting}
+                            className="w-full py-4 bg-green-500 hover:bg-green-400 text-white border-b-4 border-green-700 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:border-b-0 active:translate-y-1 disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
                         >
-                            Start Battle
+                            {isStarting ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    Starting Battle...
+                                </>
+                            ) : (
+                                'Start Battle'
+                            )}
                         </button>
                     </div>
                 )}
