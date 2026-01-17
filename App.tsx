@@ -11,10 +11,6 @@ import { LoadingProgress } from './components/LoadingProgress';
 import { LobbyScreen } from './components/LobbyScreen';
 import { CompetitionSetup } from './components/CompetitionSetup';
 import { CompetitionGameScreen } from './components/CompetitionGameScreen';
-import { GrimoireModal } from './components/GrimoireModal';
-import { saveBattleForOffline, getOfflineBattles, deleteOfflineBattle } from './services/offlineService';
-import { OfflineBattlePack } from './types';
-import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon, BookOpenIcon, WifiIcon, TrashIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
 import { RaidGameScreen } from './components/RaidGameScreen';
 import { SparklesIcon, PhotoIcon, Cog6ToothIcon, DocumentTextIcon, XMarkIcon, ClipboardDocumentListIcon, TrophyIcon, Bars3Icon, SpeakerWaveIcon, SpeakerXMarkIcon, UserGroupIcon, ArrowLeftOnRectangleIcon, FireIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
 import { Swords } from 'lucide-react';
@@ -34,11 +30,7 @@ const GameApp: React.FC = () => {
   // Hooks must run unconditionally
   const { logout, currentUser } = useAuth();
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [useGhosts, setUseGhosts] = useState(false); // Ghosts of Battles Past Toggle
-  const [showGrimoire, setShowGrimoire] = useState(false);
-  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'COMPETITION_GAME' | 'OFFLINE_MENU'>('MENU');
-  const [offlineBattles, setOfflineBattles] = useState<OfflineBattlePack[]>([]);
-  const [isPreloading, setIsPreloading] = useState(false);
+  const [view, setView] = useState<'MENU' | 'GAME' | 'LOBBY' | 'COMPETITION_SETUP' | 'RAID_SETUP' | 'COMPETITION_GAME'>('MENU');
   const [raidFriends, setRaidFriends] = useState<string[]>([]);
   const [competitionRoom, setCompetitionRoom] = useState<CompetitionRoomState | null>(null);
 
@@ -861,144 +853,6 @@ const GameApp: React.FC = () => {
           onBack={() => setView('MENU')}
           multiplayer={multiplayer}
         />
-      ) : view === 'OFFLINE_MENU' ? (
-        <div className="min-h-screen p-4 flex items-center justify-center">
-          <div className="bg-white rounded-[2rem] p-8 shadow-2xl max-w-2xl w-full border-b-8 border-slate-200 relative">
-            <button onClick={() => setView('MENU')} className="absolute top-6 left-6 p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-all"><ArrowLeftOnRectangleIcon className="w-6 h-6 rotate-180" /></button>
-
-            <div className="text-center mb-8">
-              <div className="inline-block p-4 rounded-3xl bg-slate-800 text-white mb-4 shadow-lg">
-                <WifiIcon className="w-10 h-10" />
-              </div>
-              <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Offline Mode</h2>
-              <p className="text-slate-500 font-bold">Play pre-generated battles without internet</p>
-            </div>
-
-            <div className="space-y-6">
-              {/* Preload New Battle */}
-              <div className="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-100">
-                <h3 className="font-black text-indigo-900 mb-2 flex items-center gap-2">
-                  <CloudArrowDownIcon className="w-5 h-5" />
-                  Download New Battle
-                </h3>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    id="offline-topic"
-                    placeholder="Enter Topic (e.g. Space, Python)..."
-                    className="flex-1 px-4 py-3 rounded-xl border-2 border-indigo-200 font-bold text-indigo-900 focus:border-indigo-500 outline-none"
-                  />
-                  <button
-                    onClick={async () => {
-                      const input = document.getElementById('offline-topic') as HTMLInputElement;
-                      if (!input.value) return;
-                      setIsPreloading(true);
-                      try {
-                        await saveBattleForOffline({
-                          topic: input.value,
-                          numQuestions: 5,
-                          difficulty: 'NORMAL',
-                          gender: 'RANDOM',
-                          age: 'Random',
-                          ethnicity: 'Random',
-                          mode: 'SOLO'
-                        });
-                        setOfflineBattles(getOfflineBattles());
-                        input.value = '';
-                        soundManager.playVictory();
-                      } catch (e) {
-                        alert("Failed to download: " + e);
-                      }
-                      setIsPreloading(false);
-                    }}
-                    disabled={isPreloading}
-                    className="px-6 py-3 bg-indigo-500 text-white font-black rounded-xl hover:bg-indigo-600 disabled:opacity-50 transition-all"
-                  >
-                    {isPreloading ? 'Downloading...' : 'Save'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Saved Battles List */}
-              <div>
-                <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-3">Saved Battles</h3>
-                {offlineBattles.length === 0 ? (
-                  <p className="text-center text-slate-400 py-8 font-bold italic">No offline battles saved yet.</p>
-                ) : (
-                  <div className="grid gap-3">
-                    {offlineBattles.map(battle => (
-                      <div key={battle.id} className="bg-white border-2 border-slate-200 p-4 rounded-xl flex justify-between items-center hover:border-indigo-400 transition-colors group shadow-sm">
-                        <div>
-                          <p className="font-black text-slate-700 text-lg">{battle.topic}</p>
-                          <p className="text-xs font-bold text-slate-400">
-                            {new Date(battle.timestamp).toLocaleDateString()} • {battle.difficulty}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              soundManager.playBattleMusic();
-                              // Load Manifest directly into Game State
-                              setGameState({
-                                game_status: 'PLAYING',
-                                topic_title: battle.topic,
-                                theme: battle.manifest.theme,
-                                stats: {
-                                  current_turn_index: 0,
-                                  total_turns: battle.manifest.allTurns.length,
-                                  player_hp: 100,
-                                  player_max_hp: 100,
-                                  score: 0,
-                                  streak: 0,
-                                  correct_answers: 0,
-                                  wrong_answers: 0
-                                },
-                                current_turn: battle.manifest.allTurns[0],
-                                // Note: We need to store full turns somewhere if GameApp uses 'competitionTurns' ref or similar for local too??
-                                // Ah, GameApp usually constructs turns locally or via initializeGame. 
-                                // Wait, GameApp relies on `gameState.current_turn` updating.
-                                // We need a mechanism to advance turns for offline play if 'App.tsx' handles logic.
-                                // App.tsx handles 'handleAnswer' which calls 'nextTurn' which calls AI usually?
-                                // NO: 'turn_generation_mode' is usually AI.
-                                // We need to inject the FULL list of turns into a state so `nextTurn` just picks the next one without AI.
-                              });
-                              // Populate preloadedTurns from pack
-                              preloadedTurns.current = battle.manifest.allTurns.map((turn, i) => ({
-                                content: turn,
-                                bossImage: undefined
-                              }));
-
-                              // Set Images
-                              setPlayerImage(undefined);
-                              setBackgroundImage(undefined);
-                              setBossImage(undefined);
-
-                              setView('GAME');
-                            }}
-                            className="px-4 py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 shadow-md active:translate-y-1 transition-all"
-                          >
-                            Play
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm("Delete this battle?")) {
-                                deleteOfflineBattle(battle.id);
-                                setOfflineBattles(getOfflineBattles());
-                              }
-                            }}
-                            className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                          >
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       ) : view === 'COMPETITION_GAME' && competitionRoom && gameState ? (
         competitionRoom.gameMode === 'RAID' ? (
           <RaidGameScreen
@@ -1028,12 +882,9 @@ const GameApp: React.FC = () => {
               alt="Background"
               className="w-full h-full object-cover opacity-100"
             />
-
           </div>
 
           <div className="relative z-10 w-full max-w-lg">
-
-
 
             {/* Menu Buttons Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -1058,27 +909,6 @@ const GameApp: React.FC = () => {
                     className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-purple-500"
                   >
                     <FireIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => { soundManager.playButtonClick(); setShowGrimoire(true); setShowSettings(false); setShowMenu(false); }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-indigo-500"
-                  >
-                    <BookOpenIcon className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      soundManager.playButtonClick();
-                      setOfflineBattles(getOfflineBattles());
-                      setView('OFFLINE_MENU');
-                      setShowSettings(false);
-                      setShowMenu(false);
-                    }}
-                    disabled={loading}
-                    className="p-2 transition-colors bg-slate-100 rounded-xl disabled:opacity-50 text-slate-400 hover:text-slate-600"
-                    title="Offline Mode"
-                  >
-                    <WifiIcon className="w-6 h-6" />
                   </button>
                   <button
                     onClick={() => { soundManager.playButtonClick(); setShowStats(true); setShowSettings(false); setShowMenu(false); }}
@@ -1139,25 +969,18 @@ const GameApp: React.FC = () => {
 
               {!showSettings && !showStats && (
                 <>
-                  <div className="mb-6 bg-slate-100 p-1.5 rounded-2xl flex gap-1">
-                    {/* Mode Tabs */}
+                  <div className="mb-6 flex gap-3">
                     <button
-                      onClick={() => { soundManager.playButtonClick(); setGameMode('SOLO'); }}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${gameMode === 'SOLO' ? 'bg-green-500 text-white shadow-md transform scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
+                      onClick={() => { soundManager.playButtonClick(); handleOpenLobby(); }}
+                      className="flex-1 py-3 bg-purple-500 hover:bg-purple-400 text-white border-b-4 border-purple-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
                     >
-                      <UserIcon className="w-4 h-4" /> Solo
+                      <UserGroupIcon className="w-5 h-5" /> Raid
                     </button>
                     <button
-                      onClick={() => { soundManager.playButtonClick(); setGameMode('RAID'); }}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${gameMode === 'RAID' ? 'bg-purple-500 text-white shadow-md transform scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
+                      onClick={() => { soundManager.playButtonClick(); setView('COMPETITION_SETUP'); }}
+                      className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white border-b-4 border-red-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all"
                     >
-                      <UserGroupIcon className="w-4 h-4" /> Raid
-                    </button>
-                    <button
-                      onClick={() => { soundManager.playButtonClick(); setGameMode('PVP'); }}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${gameMode === 'PVP' ? 'bg-red-500 text-white shadow-md transform scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
-                    >
-                      <Swords className="w-4 h-4" /> PvP
+                      <Swords className="w-5 h-5" /> 1v1 Battle
                     </button>
                   </div>
                   {/* Resume Game Modal */}
@@ -1435,88 +1258,87 @@ const GameApp: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading || (!topic && !file && !pastedContent)}
-                      className={`relative w-full text-white border-b-8 rounded-2xl py-4 font-black text-xl uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg overflow-hidden active:border-b-0 active:translate-y-2
-                          ${gameMode === 'SOLO' ? 'bg-green-500 hover:bg-green-400 active:bg-green-600 border-green-700' :
-                          gameMode === 'RAID' ? 'bg-purple-500 hover:bg-purple-400 active:bg-purple-600 border-purple-700' :
-                            'bg-red-500 hover:bg-red-400 active:bg-red-600 border-red-700'
-                        }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (gameMode === 'SOLO') handleStartGame();
-                        else if (gameMode === 'RAID') handleOpenLobby();
-                        else setView('COMPETITION_SETUP');
-                      }}
-                    >
-                      {loading && (
-                        <div className="absolute left-6 top-1/2 -translate-y-1/2">
-                          <SparklesIcon className="w-6 h-6 animate-spin text-white" />
-                        </div>
-                      )}
-
-                      <div className="flex flex-col items-center leading-tight">
-                        <span className={loading ? "animate-pulse" : ""}>
-                          {loading ? "LOADING..." : gameMode === 'SOLO' ? "START ADVENTURE" : gameMode === 'RAID' ? "START RAID" : "SETUP DUEL"}
-                        </span>
+                    <div className="space-y-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={loading || (!topic && !file && !pastedContent)}
+                        className="relative w-full bg-green-500 hover:bg-green-400 active:bg-green-600 text-white border-b-8 border-green-700 active:border-b-0 active:translate-y-2 rounded-2xl py-4 font-black text-xl uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg overflow-hidden"
+                      >
                         {loading && (
-                          <span className="text-[10px] opacity-90 font-bold mt-0.5 tracking-normal normal-case">
-                            this can take a minute, please wait
-                          </span>
+                          <div className="absolute left-6 top-1/2 -translate-y-1/2">
+                            <SparklesIcon className="w-6 h-6 animate-spin text-white" />
+                          </div>
                         )}
-                      </div>
-                    </button>
-                  </div>
+
+                        <div className="flex flex-col items-center leading-tight">
+                          <span className={loading ? "animate-pulse" : ""}>{loading ? "LOADING..." : "START BATTLE"}</span>
+                          {loading && (
+                            <span className="text-[10px] opacity-90 font-bold mt-0.5 tracking-normal normal-case">
+                              this can take a minute, please wait
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleOpenLobby}
+                        disabled={loading || (!topic && !file && !pastedContent)}
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-purple-600 border-b-4 border-slate-300 hover:border-purple-300 active:border-b-0 active:translate-y-2 rounded-2xl py-3 font-bold text-sm uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <UserGroupIcon className="w-5 h-5" />
+                        <span>Start Co-op Raid</span>
+                      </button>
+                    </div>
 
 
 
-                {/* Manual Resume Button (Debug/Fallback) */}
-                {!loading && currentUser && hasSavedGame(currentUser.uid) && (
-                  <button
-                    onClick={() => {
-                      const saved = loadGameState(currentUser.uid);
-                      if (saved) {
-                        setSavedGameData(saved);
-                        setShowResumeModal(true);
-                      }
-                    }}
-                    className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 rounded-xl py-2 font-bold text-sm uppercase tracking-wide transition-all"
-                  >
-                    📂 Resume Saved Game
-                  </button>
+                    {/* Manual Resume Button (Debug/Fallback) */}
+                    {!loading && currentUser && hasSavedGame(currentUser.uid) && (
+                      <button
+                        onClick={() => {
+                          const saved = loadGameState(currentUser.uid);
+                          if (saved) {
+                            setSavedGameData(saved);
+                            setShowResumeModal(true);
+                          }
+                        }}
+                        className="mt-2 w-full bg-blue-500 hover:bg-blue-400 text-white border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 rounded-xl py-2 font-bold text-sm uppercase tracking-wide transition-all"
+                      >
+                        📂 Resume Saved Game
+                      </button>
+                    )}
+
+                  </>
                 )}
 
-              </>
-                )}
+              </form>
+            </div>
 
-            </form>
+            <p className="text-center text-xs font-bold text-slate-300 mt-8 uppercase tracking-widest">
+              Powered by Google Gemini
+            </p>
+
           </div>
-
-          <p className="text-center text-xs font-bold text-slate-300 mt-8 uppercase tracking-widest">
-            Powered by Google Gemini
-          </p>
-
         </div>
-        </div>
-  ) : gameState ? (
-    <GameScreen
-      gameState={gameState}
-      bossImage={bossImage}
-      playerImage={playerImage}
-      backgroundImage={backgroundImage}
-      onAction={handleAction}
-      onTransitionComplete={handleTransitionComplete}
-      onGiveUp={handleReset}
-      onSaveAndQuit={handleSaveAndQuit}
-      onUsePowerup={handleUsePowerup}
-      soundManager={soundManager}
-      missedQuestions={[...currentSessionMissedQuestions.current]}
-      topicName={gameState.topic_title || 'General Knowledge'}
-      contextSummary={gameState.context_summary}
-    />
-  ) : null
-}
+      ) : gameState ? (
+        <GameScreen
+          gameState={gameState}
+          bossImage={bossImage}
+          playerImage={playerImage}
+          backgroundImage={backgroundImage}
+          onAction={handleAction}
+          onTransitionComplete={handleTransitionComplete}
+          onGiveUp={handleReset}
+          onSaveAndQuit={handleSaveAndQuit}
+          onUsePowerup={handleUsePowerup}
+          soundManager={soundManager}
+          missedQuestions={[...currentSessionMissedQuestions.current]}
+          topicName={gameState.topic_title || 'General Knowledge'}
+          contextSummary={gameState.context_summary}
+        />
+      ) : null
+      }
     </div >
   );
 };
