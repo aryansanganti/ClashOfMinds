@@ -855,6 +855,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 className="w-full h-full object-contain drop-shadow-2xl animate-[float_3s_ease-in-out_infinite]"
               />
             )}
+
+            {/* Shield Visual Effect */}
+            {gameState.stats.active_powerups.some(p => p.type === 'SHIELD') && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] pointer-events-none z-20 flex items-center justify-center">
+                <div className="w-full h-full rounded-full border-2 border-cyan-400/30 bg-cyan-400/5 shadow-[0_0_30px_rgba(34,211,238,0.2)] animate-shield-pulse backdrop-blur-[1px]">
+                  <div className="absolute inset-0 w-full h-full rounded-full border-t-2 border-b-2 border-cyan-300/60 animate-spin-slow opacity-60" />
+                  <div className="absolute inset-0 w-full h-full rounded-full border-l-2 border-r-2 border-blue-400/40 animate-spin-slow opacity-40 mix-blend-screen" style={{ animationDirection: 'reverse', animationDuration: '7s' }} />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Enemy - positioned to the right - LARGE */}
@@ -975,6 +985,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         }
         .animate-shake {
           animation: shake 0.7s ease-in-out;
+        }
+        @keyframes shieldPulse {
+          0%, 100% { transform: scale(1); opacity: 0.5; box-shadow: 0 0 20px rgba(34,211,238,0.3); }
+          50% { transform: scale(1.02); opacity: 0.7; box-shadow: 0 0 40px rgba(34,211,238,0.6); }
+        }
+        .animate-shield-pulse {
+          animation: shieldPulse 3s ease-in-out infinite;
+        }
+        @keyframes spinSlow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spinSlow 10s linear infinite;
         }
       `}</style>
       {/* Wisdom Scroll Modal */}
