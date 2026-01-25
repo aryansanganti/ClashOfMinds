@@ -3,7 +3,7 @@ import { GameState, InitGameParams, TurnContent, GameStatus, FullGameManifest } 
 import { SYSTEM_INSTRUCTION } from "../constants";
 
 // Use Pro for initial setup (rich creative with all turns)
-const INIT_MODEL = "gemini-3-pro-preview";
+const INIT_MODEL = "gemini-3-flash-preview";
 const IMAGE_MODEL = "gemini-2.5-flash-image";
 const HINT_MODEL = "gemini-2.0-flash-exp"; // Using flash-exp as preview might be unstable, or user requested "gemini-3-flash-preview" specifically. Let's stick to user request if valid, but "gemini-2.0-flash-exp" is often safer for immediate availability. Wait, user explicitly asked for "gemini-3-flash-preview". I will use that.
 // Actually, looking at the user request: "gemini-3-flash-preview". I will use EXACTLY that.

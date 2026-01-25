@@ -1756,15 +1756,6 @@ const GameApp: React.FC = () => {
                         </div>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={handleOpenLobby}
-                        disabled={loading || (!topic && !file && !pastedContent)}
-                        className="w-full bg-white/10 hover:bg-white/20 text-white hover:text-purple-300 border-b-4 border-white/20 hover:border-purple-400/50 active:border-b-0 active:translate-y-2 rounded-2xl py-3 font-bold text-sm uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 backdrop-blur-sm"
-                      >
-                        <UserGroupIcon className="w-5 h-5" />
-                        <span>Start Co-op Raid</span>
-                      </button>
                     </div>
 
                     {/* Main Input Form */}
